@@ -1,4 +1,3 @@
-// backend/routes/userRoutes.js
 import express from "express";
 import { User } from "../models/User.js";
 import Exam from "../models/Exam.js";
@@ -44,8 +43,144 @@ router.get("/students", async (req, res) => {
 // ✅ Update any generic field (ADD THIS ROUTE)
 router.post("/update-field", updateStudentField);
 
-// ✅ Update attendance
-router.post("/update-attendance", markAttendance);
+// ========================
+// 🔹 ATTENDANCE ROUTES (FIXED)
+// ========================
+
+// Get all attendance records
+router.get('/attendance', async (req, res) => {
+  try {
+    // Get all students with their attendance data
+    const students = await User.find({ role: "Student" }).select('email attendanceData');
+    
+    const records = {};
+    students.forEach(student => {
+      records[student.email] = student.attendanceData || {};
+    });
+    
+    res.json({
+      success: true,
+      records
+    });
+  } catch (error) {
+    console.error("Error fetching attendance:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Mark attendance for a student
+router.post('/attendance/mark', async (req, res) => {
+  try {
+    const { studentEmail, date, status } = req.body;
+    
+    // Validate input
+    if (!studentEmail || !date || !status) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Missing required fields: studentEmail, date, status" 
+      });
+    }
+
+    // Find student and update attendance
+    const student = await User.findOne({ email: studentEmail });
+    if (!student) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Student not found" 
+      });
+    }
+
+    // Initialize attendanceData if it doesn't exist
+    if (!student.attendanceData) {
+      student.attendanceData = {};
+    }
+
+    // Update attendance for the specific date
+    student.attendanceData[date] = status;
+    
+    // Save the updated student
+    await student.save();
+    
+    res.json({ 
+      success: true, 
+      message: `Attendance marked as ${status} for ${studentEmail} on ${date}` 
+    });
+  } catch (error) {
+    console.error("Error marking attendance:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Bulk mark attendance
+router.post('/attendance/bulk-mark', async (req, res) => {
+  try {
+    const { date, status, studentEmails } = req.body;
+    
+    // Validate input
+    if (!date || !status || !studentEmails || !Array.isArray(studentEmails)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Missing required fields: date, status, studentEmails" 
+      });
+    }
+
+    // Bulk update all students
+    const bulkOperations = studentEmails.map(email => ({
+      updateOne: {
+        filter: { email: email },
+        update: { 
+          $set: { 
+            [`attendanceData.${date}`]: status 
+          } 
+        }
+      }
+    }));
+
+    // Execute bulk operation
+    const result = await User.bulkWrite(bulkOperations);
+    
+    res.json({ 
+      success: true, 
+      message: `Bulk marked ${result.modifiedCount} students as ${status} on ${date}`,
+      modifiedCount: result.modifiedCount
+    });
+  } catch (error) {
+    console.error("Error in bulk marking attendance:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get student's attendance
+router.get('/attendance/student/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    
+    // Find student and get attendance data
+    const student = await User.findOne({ email: email }).select('attendanceData name email section');
+    
+    if (!student) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Student not found" 
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      attendance: {
+        records: student.attendanceData || {},
+        studentInfo: {
+          name: student.name,
+          email: student.email,
+          section: student.section
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching student attendance:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // ✅ Update marks  
 router.post("/update-marks", enterMarks);

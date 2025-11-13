@@ -7,7 +7,11 @@ const userSchema = new mongoose.Schema({
   password: String,
   role: { type: String, default: "Student" },
   section: { type: String, default: "" },
-  attendance: { type: String, default: "0%" },
+  attendanceData: {
+    type: Map,
+    of: String, // Stores status: "Present" or "Absent"
+    default: {}
+  },
   marks: { type: String, default: "0" },
   fees: { type: String, default: "Unpaid" },
   cgpa: { type: Number, default: 0 },
