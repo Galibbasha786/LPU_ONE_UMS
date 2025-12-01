@@ -268,7 +268,7 @@ function Attendance() {
 const styles = {
   container: {
     minHeight: "100vh",
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    background: "linear-gradient(135deg, #ee6e0cff 0%, #ed6e07ff 100%)",
     padding: "20px",
     fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
@@ -313,7 +313,7 @@ const styles = {
     gap: "10px",
   },
   bulkPresentBtn: {
-    background: "linear-gradient(135deg, #10b981, #059669)",
+    background: "linear-gradient(135deg, #f50b5dff, #e422aaff)",
     color: "white",
     border: "none",
     padding: "10px 20px",
@@ -339,7 +339,7 @@ const styles = {
     textAlign: "center",
     fontWeight: "600",
     fontSize: "1.1rem",
-    color: "#10b981",
+    color: "#ee780aff",
   },
   tableContainer: {
     background: "rgba(255, 255, 255, 0.95)",
@@ -354,7 +354,7 @@ const styles = {
     borderCollapse: "collapse",
   },
   tableHeader: {
-    background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+    background: "linear-gradient(135deg, #ed780bff, #7c3aed)",
   },
   th: {
     padding: "20px",
@@ -379,7 +379,7 @@ const styles = {
     width: "50px",
     height: "50px",
     borderRadius: "50%",
-    background: "linear-gradient(135deg, #667eea, #764ba2)",
+    background: "linear-gradient(135deg, #f18406ff, #764ba2)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -434,7 +434,7 @@ const styles = {
     gap: "10px",
   },
   presentBtn: {
-    background: "#10b981",
+    background: "#ed7d05ff",
     color: "white",
     border: "none",
     padding: "8px 16px",
@@ -444,7 +444,7 @@ const styles = {
     opacity: 1,
   },
   absentBtn: {
-    background: "#ef4444",
+    background: "#f75d04ff",
     color: "white",
     border: "none",
     padding: "8px 16px",

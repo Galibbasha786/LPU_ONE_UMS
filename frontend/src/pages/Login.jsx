@@ -59,7 +59,7 @@ function Login() {
     <div style={styles.container}>
       <div style={styles.content}>
         <img src={logo} alt="logo" style={styles.logo} />
-        <h1 style={styles.title}>🎓 LPU Combined Portal Login</h1>
+        <h1 style={styles.title}>ONE LPU</h1>
         
         <form onSubmit={handleLogin} style={styles.form}>
           <input
@@ -95,6 +95,7 @@ const styles = {
     backgroundImage: `url(${bg})`,
     backgroundSize: "cover",
     backgroundPosition: "center",
+    
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -102,22 +103,25 @@ const styles = {
     padding: 0,
   },
   content: {
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
+   background: "linear-gradient(135deg, #FFA84F, #FFD29D, #9BC190, #4D7A6F)",
     padding: "40px",
     borderRadius: "15px",
-    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+    boxShadow: "0 8px 32px rgba(24, 166, 237, 1)",
     textAlign: "center",
     minWidth: "400px",
+    
   },
   logo: {
     width: "150px",
     marginBottom: "20px",
+    borderRadius:'14px'
   },
   title: { 
-    color: "#2e3b55", 
+    color: "#1d1b18ff", 
     marginBottom: "30px",
-    fontSize: "24px",
+    fontSize: "39px",
     fontWeight: "bold",
+
   },
   form: {
     display: "flex",

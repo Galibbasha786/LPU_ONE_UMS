@@ -25,7 +25,7 @@ const LPUChatbot = () => {
   const speechSynthesisRef = useRef(null);
 
   // Initialize Gemini AI
-  const genAI = new GoogleGenerativeAI("Paste your api key here");
+  const genAI = new GoogleGenerativeAI("AIzaSyDcZiTCaDym0znJlr4rgy-6HfAaR28nF2c");
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   // Initialize Speech Recognition
