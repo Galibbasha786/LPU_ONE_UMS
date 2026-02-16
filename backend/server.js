@@ -6,16 +6,21 @@ import http from "http";
 import { Server } from "socket.io";
 import userRoutes from "./routes/userRoutes.js"; 
 import { User } from "./models/User.js"; 
+import { ReportCard } from "./models/ReportCard.js";
 
 const app = express();
 const server = http.createServer(app);
 
-app.use(express.json());
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+// increase JSON payload limit to accept base64 image data URLs
+app.use(express.json({ limit: "10mb" }));
+// enable CORS for the frontend origin and handle preflight requests
+app.use(
+  cors({ origin: "http://localhost:5173", credentials: true })
+);
 
 // ✅ MongoDB Connection
 mongoose
-  .connect("mongodb://127.0.0.1:27017/lpuPortal", {
+  .connect("mongodb://127.0.0.1:27017/lpuCombinedApp", {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
@@ -126,6 +131,32 @@ app.get("/api/users/student/:email", (req, res) => {
     res.json({ success: true, student });
   } else {
     res.json({ success: false, message: "Student not found" });
+  }
+});
+
+// ✅ Report Card APIs
+app.post("/api/users/reportcard", async (req, res) => {
+  try {
+    const { email, studentName, subjects, cgpa, tgpa } = req.body;
+    if (!email || !subjects) return res.status(400).json({ success: false, message: "email and subjects required" });
+
+    const report = new ReportCard({ email, studentName, subjects, cgpa, tgpa });
+    await report.save();
+    res.json({ success: true, message: "Report card saved", report });
+  } catch (err) {
+    console.error("ReportCard Error:", err);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+});
+
+app.get("/api/users/reportcards/:email", async (req, res) => {
+  try {
+    const email = req.params.email;
+    const reports = await ReportCard.find({ email }).sort({ createdAt: -1 });
+    res.json({ success: true, reports });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error fetching reports" });
   }
 });
 

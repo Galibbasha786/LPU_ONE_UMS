@@ -103,7 +103,7 @@ const styles = {
     padding: 0,
   },
   content: {
-   background: "linear-gradient(135deg, #FFA84F, #FFD29D, #9BC190, #4D7A6F)",
+   background: "linear-gradient(135deg, #635f5cff, #d4b490ff, #e0cfb4ff, #766040ff)",
     padding: "40px",
     borderRadius: "15px",
     boxShadow: "0 8px 32px rgba(24, 166, 237, 1)",

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import lpuLogo from "../assets/logo.jpg";
+import CGPACalculator from "./CGPACalculator";
 import "../styles/StudentDashboard.css";
 
 function StudentDashboard() {
@@ -86,7 +87,7 @@ function StudentDashboard() {
             <p className="portal-name">Student Portal</p>
           </div>
         </div>
-        <div className="header-actions">
+          <div className="header-actions">
           <div className="user-info">
             <span className="user-name">Welcome, {user.name}</span>
             <span className="user-role">Student</span>
@@ -127,6 +128,13 @@ function StudentDashboard() {
             >
               <span className="btn-icon">📝</span>
               <span className="btn-text">My Marks</span>
+            </button>
+            <button 
+              className={`sidebar-btn ${activeSection === "cgpa" ? "active" : ""}`}
+              onClick={() => setActiveSection("cgpa")}
+            >
+              <span className="btn-icon">🎓</span>
+              <span className="btn-text">CGPA Calculator</span>
             </button>
             <button 
               className={`sidebar-btn ${activeSection === "timetable" ? "active" : ""}`}
@@ -406,6 +414,14 @@ function StudentDashboard() {
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+          {activeSection === "cgpa" && (
+            <div className="content-section">
+              <h2 className="section-title">CGPA Calculator</h2>
+              <div className="info-card">
+                <CGPACalculator />
               </div>
             </div>
           )}
