@@ -443,6 +443,65 @@
   border: 2px dashed #d1d5db;
 }
 
+/* Attendance Calculator */
+.attendance-calculator {
+  max-width: 720px;
+  margin-top: 1.5rem;
+}
+
+.attendance-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: end;
+}
+
+.attendance-form .form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.attendance-form label {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.attendance-form input[type="number"] {
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.attendance-form .form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.result-block {
+  margin-top: 1rem;
+  background: #f8fafc;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #4f46e5;
+}
+
+.result-block .error {
+  color: #991b1b;
+  font-weight: 700;
+}
+
+.result-block .advice {
+  margin-top: 0.5rem;
+  color: #374151;
+  font-style: italic;
+}
+
+.attendance-calculator .action-btn {
+  padding: 0.6rem 1rem;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .dashboard-main {

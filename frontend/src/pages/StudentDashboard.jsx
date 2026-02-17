@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import lpuLogo from "../assets/logo.jpg";
 import CGPACalculator from "./CGPACalculator";
+import AttendanceCalculator from "./AttendanceCalculator";
 import "../styles/StudentDashboard.css";
 
 function StudentDashboard() {
@@ -325,6 +326,8 @@ function StudentDashboard() {
                   </div>
                 </div>
               </div>
+
+              <AttendanceCalculator />
             </div>
           )}
 
