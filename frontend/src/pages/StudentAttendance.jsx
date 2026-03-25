@@ -1,40 +1,52 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 function StudentAttendance() {
+  const navigate = useNavigate();
   const [attendanceData, setAttendanceData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [showCalendar, setShowCalendar] = useState(false);
   const user = JSON.parse(localStorage.getItem("user"));
   
   if (!user || user.role !== "Student") {
-    return <p style={{textAlign: "center", marginTop: "50px", color: "red"}}>Access Denied</p>;
+    return (
+      <div style={styles.accessDenied}>
+        <h2>⛔ Access Denied</h2>
+        <p>Only students can view attendance.</p>
+        <button onClick={() => navigate("/")} style={styles.backBtn}>
+          ← Go Back to Login
+        </button>
+      </div>
+    );
   }
 
   // Fetch student's detailed attendance data
   useEffect(() => {
-    const fetchStudentAttendance = async () => {
-      try {
-        const res = await fetch(`http://localhost:5001/api/users/attendance/student/${user.email}`);
-        const data = await res.json();
-        
-        if (data.success) {
-          setAttendanceData(data.attendance);
-        } else {
-          console.error("Failed to fetch attendance data");
-        }
-      } catch (error) {
-        console.error("Error fetching attendance:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchStudentAttendance();
     
     // Set up real-time updates (polling every 30 seconds)
     const interval = setInterval(fetchStudentAttendance, 30000);
     return () => clearInterval(interval);
   }, [user.email]);
+
+  const fetchStudentAttendance = async () => {
+    try {
+      const res = await fetch(`http://localhost:5001/api/users/attendance/student/${user.email}`);
+      const data = await res.json();
+      
+      if (data.success) {
+        setAttendanceData(data.attendance);
+      } else {
+        console.error("Failed to fetch attendance data");
+      }
+    } catch (error) {
+      console.error("Error fetching attendance:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Calculate statistics from attendance records
   const calculateStats = () => {
@@ -97,6 +109,35 @@ function StudentAttendance() {
       .slice(0, 6);
   };
 
+  // Get filtered attendance by month
+  const getFilteredAttendance = () => {
+    if (!attendanceData?.records) return [];
+    
+    const records = attendanceData.records;
+    let filteredDates = Object.keys(records);
+    
+    if (selectedMonth !== "all") {
+      filteredDates = filteredDates.filter(date => {
+        const month = new Date(date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        return month === selectedMonth;
+      });
+    }
+    
+    return filteredDates
+      .sort()
+      .reverse()
+      .map(date => ({
+        date,
+        status: records[date],
+        day: new Date(date).toLocaleDateString('en-US', { weekday: 'long' }),
+        fullDate: new Date(date).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        })
+      }));
+  };
+
   // Get all attendance history
   const getAllAttendance = () => {
     if (!attendanceData?.records) return [];
@@ -117,10 +158,50 @@ function StudentAttendance() {
       }));
   };
 
+  // Generate calendar data
+  const generateCalendarData = () => {
+    if (!attendanceData?.records) return [];
+    
+    const records = attendanceData.records;
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    
+    const calendar = [];
+    let day = 1;
+    
+    for (let i = 0; i < 6; i++) {
+      const week = [];
+      for (let j = 0; j < 7; j++) {
+        if (i === 0 && j < startingDayOfWeek) {
+          week.push(null);
+        } else if (day > daysInMonth) {
+          week.push(null);
+        } else {
+          const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const status = records[dateStr];
+          week.push({ day, date: dateStr, status: status || 'Not Marked' });
+          day++;
+        }
+      }
+      calendar.push(week);
+      if (day > daysInMonth) break;
+    }
+    
+    return calendar;
+  };
+
   const stats = calculateStats();
   const recentAttendance = getRecentAttendance();
   const monthlyStats = getMonthlyStats();
   const allAttendance = getAllAttendance();
+  const filteredAttendance = getFilteredAttendance();
+  const calendarData = generateCalendarData();
+  const months = ["all", ...monthlyStats.map(m => m.month)];
 
   const getPercentageColor = (percentage) => {
     if (percentage >= 90) return "#10b981";
@@ -130,7 +211,7 @@ function StudentAttendance() {
 
   const getStatusBadge = (status) => {
     return {
-      background: status === "Present" ? "#10b981" : "#ef4444",
+      background: status === "Present" ? "#10b981" : status === "Absent" ? "#ef4444" : "#6b7280",
       color: "white",
       padding: "8px 16px",
       borderRadius: "20px",
@@ -167,6 +248,12 @@ function StudentAttendance() {
     }
   };
 
+  const getRequiredAttendance = () => {
+    const requiredFor75 = Math.ceil(0.75 * stats.total);
+    const needed = requiredFor75 - stats.present;
+    return needed > 0 ? needed : 0;
+  };
+
   if (loading) {
     return (
       <div style={styles.container}>
@@ -182,10 +269,13 @@ function StudentAttendance() {
 
   return (
     <div style={styles.container}>
-      {/* Header Section */}
-      <div style={styles.header}>
+      {/* Header */}
+      <header style={styles.header}>
         <div style={styles.headerContent}>
-          <div style={styles.headerText}>
+          <div>
+            <button onClick={() => navigate("/student-dashboard")} style={styles.backBtn}>
+              ← Back to Dashboard
+            </button>
             <h1 style={styles.title}>📊 Attendance Dashboard</h1>
             <p style={styles.subtitle}>Track your attendance performance in real-time</p>
           </div>
@@ -202,33 +292,30 @@ function StudentAttendance() {
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Navigation Tabs */}
       <div style={styles.tabContainer}>
         <button 
-          style={{
-            ...styles.tab,
-            ...(activeTab === "overview" ? styles.activeTab : {})
-          }}
+          style={{...styles.tab, ...(activeTab === "overview" ? styles.activeTab : {})}}
           onClick={() => setActiveTab("overview")}
         >
           📈 Overview
         </button>
         <button 
-          style={{
-            ...styles.tab,
-            ...(activeTab === "history" ? styles.activeTab : {})
-          }}
+          style={{...styles.tab, ...(activeTab === "history" ? styles.activeTab : {})}}
           onClick={() => setActiveTab("history")}
         >
           📅 Full History
         </button>
         <button 
-          style={{
-            ...styles.tab,
-            ...(activeTab === "analytics" ? styles.activeTab : {})
-          }}
+          style={{...styles.tab, ...(activeTab === "calendar" ? styles.activeTab : {})}}
+          onClick={() => setActiveTab("calendar")}
+        >
+          📆 Calendar View
+        </button>
+        <button 
+          style={{...styles.tab, ...(activeTab === "analytics" ? styles.activeTab : {})}}
           onClick={() => setActiveTab("analytics")}
         >
           📊 Analytics
@@ -296,15 +383,15 @@ function StudentAttendance() {
                 background: `linear-gradient(135deg, ${getPercentageColor(stats.percentage)}, ${getPercentageColor(stats.percentage)}dd)`,
                 color: 'white'
               }}>
-                <div style={styles.statIcon}>📈</div>
+                <div style={styles.statIcon}>🎯</div>
                 <div style={styles.statContent}>
                   <h3 style={{...styles.statNumber, color: "white"}}>
-                    {stats.percentage}%
+                    {getRequiredAttendance()}
                   </h3>
-                  <p style={{...styles.statLabel, color: "rgba(255,255,255,0.8)"}}>Success Rate</p>
+                  <p style={{...styles.statLabel, color: "rgba(255,255,255,0.8)"}}>More to reach 75%</p>
                 </div>
                 <div style={{...styles.statTrend, color: 'rgba(255,255,255,0.8)'}}>
-                  Performance
+                  Target
                 </div>
               </div>
             </div>
@@ -314,7 +401,7 @@ function StudentAttendance() {
               <div style={styles.progressHeader}>
                 <h3 style={styles.progressTitle}>Attendance Progress</h3>
                 <div style={styles.progressLabels}>
-                  <span style={styles.progressLabel}>Goal: 90%</span>
+                  <span style={styles.progressLabel}>Goal: 75%</span>
                   <span style={styles.percentageText}>{stats.percentage}%</span>
                 </div>
               </div>
@@ -330,9 +417,9 @@ function StudentAttendance() {
                 </div>
                 <div style={styles.progressMarkers}>
                   <span>0%</span>
+                  <span>25%</span>
                   <span>50%</span>
                   <span>75%</span>
-                  <span>90%</span>
                   <span>100%</span>
                 </div>
               </div>
@@ -397,6 +484,60 @@ function StudentAttendance() {
                   <p>No attendance history available</p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Calendar View Tab */}
+        {activeTab === "calendar" && (
+          <div style={styles.calendarCard}>
+            <div style={styles.cardHeader}>
+              <h3 style={styles.cardTitle}>📆 Attendance Calendar</h3>
+              <span style={styles.viewAll}>{new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+            </div>
+            <div style={styles.calendar}>
+              <div style={styles.weekdays}>
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
+                  <div key={day} style={styles.weekday}>{day}</div>
+                ))}
+              </div>
+              {calendarData.map((week, weekIndex) => (
+                <div key={weekIndex} style={styles.calendarWeek}>
+                  {week.map((day, dayIndex) => (
+                    <div key={dayIndex} style={styles.calendarDay}>
+                      {day ? (
+                        <div style={{
+                          ...styles.dayContent,
+                          ...(day.status === "Present" ? styles.dayPresent :
+                             day.status === "Absent" ? styles.dayAbsent :
+                             styles.dayNotMarked)
+                        }}>
+                          <span style={styles.dayNumber}>{day.day}</span>
+                          <span style={styles.dayStatus}>
+                            {day.status === "Present" ? "✓" : day.status === "Absent" ? "✗" : "?"}
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={styles.emptyDay}></div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div style={styles.calendarLegend}>
+              <div style={styles.legendItem}>
+                <div style={{...styles.legendColor, backgroundColor: "#10b981"}}></div>
+                <span>Present</span>
+              </div>
+              <div style={styles.legendItem}>
+                <div style={{...styles.legendColor, backgroundColor: "#ef4444"}}></div>
+                <span>Absent</span>
+              </div>
+              <div style={styles.legendItem}>
+                <div style={{...styles.legendColor, backgroundColor: "#6b7280"}}></div>
+                <span>Not Marked</span>
+              </div>
             </div>
           </div>
         )}
@@ -473,6 +614,15 @@ function StudentAttendance() {
                       </div>
                     </div>
                   </div>
+                  <div style={styles.insightItem}>
+                    <div style={styles.insightIcon}>📈</div>
+                    <div>
+                      <div style={styles.insightTitle}>Target Progress</div>
+                      <div style={styles.insightValue}>
+                        {stats.percentage >= 75 ? 'Achieved! 🎉' : `${getRequiredAttendance()} more to 75%`}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -496,10 +646,30 @@ function StudentAttendance() {
 
 const styles = {
   container: {
-  minHeight: "100vh",
-  background: "linear-gradient(135deg, #ff6d00 0%, #e65100 100%)", // Dark orange gradient
-  fontFamily: "'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-},
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #ff6d00 0%, #e65100 100%)",
+    fontFamily: "'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+  },
+  accessDenied: {
+    minHeight: "100vh",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "linear-gradient(135deg, #ff6d00 0%, #e65100 100%)",
+    color: "white",
+    textAlign: "center",
+  },
+  backBtn: {
+    background: "rgba(255, 255, 255, 0.2)",
+    border: "1px solid rgba(255,255,255,0.3)",
+    color: "white",
+    padding: "8px 16px",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontSize: "0.85rem",
+    marginBottom: "10px",
+  },
   loading: {
     display: "flex",
     flexDirection: "column",
@@ -537,34 +707,29 @@ const styles = {
     flexWrap: "wrap",
     gap: "20px",
   },
-  headerText: {
-    flex: 1,
-  },
   title: {
     color: "white",
-    fontSize: "2.5rem",
+    fontSize: "2rem",
     fontWeight: "700",
-    margin: "0 0 8px 0",
+    margin: "0 0 5px 0",
     textShadow: "0 2px 4px rgba(0, 0, 0, 0.3)",
   },
   subtitle: {
     color: "rgba(255, 255, 255, 0.8)",
-    fontSize: "1.1rem",
+    fontSize: "0.9rem",
     margin: 0,
-    fontWeight: "400",
   },
   profileSection: {
     display: "flex",
     alignItems: "center",
     gap: "15px",
     background: "rgba(255, 255, 255, 0.1)",
-    padding: "15px 20px",
+    padding: "12px 20px",
     borderRadius: "15px",
-    backdropFilter: "blur(10px)",
   },
   avatar: {
-    width: "50px",
-    height: "50px",
+    width: "45px",
+    height: "45px",
     borderRadius: "50%",
     background: "linear-gradient(135deg, #ff6b6b, #ee5a24)",
     display: "flex",
@@ -572,58 +737,52 @@ const styles = {
     justifyContent: "center",
     color: "white",
     fontWeight: "bold",
-    fontSize: "1.3rem",
-    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.2)",
+    fontSize: "1.2rem",
   },
   profileInfo: {
     color: "white",
   },
   studentName: {
-    fontSize: "1.2rem",
+    fontSize: "1rem",
     fontWeight: "600",
-    marginBottom: "4px",
+    marginBottom: "2px",
   },
   studentDetails: {
     display: "flex",
-    flexDirection: "column",
-    gap: "2px",
+    gap: "8px",
+    fontSize: "0.75rem",
+    opacity: 0.8,
   },
   section: {
-    fontSize: "0.9rem",
-    opacity: 0.9,
-    background: "rgba(255, 255, 255, 0.2)",
-    padding: "2px 8px",
+    background: "rgba(255,255,255,0.2)",
+    padding: "2px 6px",
     borderRadius: "10px",
-    display: "inline-block",
   },
   email: {
-    fontSize: "0.85rem",
     opacity: 0.7,
   },
   tabContainer: {
     maxWidth: "1200px",
     margin: "0 auto",
-    padding: "20px",
+    padding: "15px 20px 0",
     display: "flex",
-    gap: "10px",
-    borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+    gap: "8px",
+    flexWrap: "wrap",
   },
   tab: {
     background: "rgba(255, 255, 255, 0.1)",
     border: "none",
-    padding: "12px 24px",
-    borderRadius: "10px",
+    padding: "10px 20px",
+    borderRadius: "8px",
     color: "rgba(255, 255, 255, 0.8)",
-    fontSize: "0.95rem",
+    fontSize: "0.9rem",
     fontWeight: "500",
     cursor: "pointer",
     transition: "all 0.3s ease",
-    backdropFilter: "blur(10px)",
   },
   activeTab: {
     background: "rgba(255, 255, 255, 0.2)",
     color: "white",
-    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.1)",
   },
   content: {
     maxWidth: "1200px",
@@ -632,272 +791,326 @@ const styles = {
   },
   statusCard: {
     background: "rgba(255, 255, 255, 0.95)",
-    backdropFilter: "blur(10px)",
-    borderRadius: "20px",
-    padding: "30px",
-    marginBottom: "30px",
-    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.1)",
+    borderRadius: "16px",
+    padding: "20px",
+    marginBottom: "20px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     flexWrap: "wrap",
-    gap: "20px",
+    gap: "15px",
   },
   statusHeader: {
     display: "flex",
     alignItems: "center",
-    gap: "20px",
+    gap: "15px",
     flex: 1,
   },
   statusEmoji: {
-    fontSize: "3rem",
+    fontSize: "2.5rem",
   },
   statusTitle: {
-    margin: "0 0 8px 0",
-    color: "#2d3748",
-    fontSize: "1.5rem",
+    margin: "0 0 5px 0",
+    fontSize: "1.2rem",
     fontWeight: "600",
+    color: "#2d3748",
   },
   statusMessage: {
     margin: 0,
     color: "#718096",
-    fontSize: "1rem",
+    fontSize: "0.85rem",
   },
   statusPercentage: {
     textAlign: "center",
   },
   percentageLarge: {
-    fontSize: "3rem",
+    fontSize: "2.5rem",
     fontWeight: "700",
     display: "block",
-    lineHeight: 1,
   },
   percentageLabel: {
     color: "#718096",
-    fontSize: "0.9rem",
-    marginTop: "5px",
+    fontSize: "0.8rem",
   },
   statsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "20px",
-    marginBottom: "30px",
+    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+    gap: "15px",
+    marginBottom: "20px",
   },
   statCard: {
     background: "rgba(255, 255, 255, 0.95)",
-    backdropFilter: "blur(10px)",
-    borderRadius: "15px",
-    padding: "25px",
-    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.1)",
+    borderRadius: "12px",
+    padding: "15px",
     position: "relative",
     transition: "transform 0.3s ease",
   },
-  statCardHover: {
-    transform: "translateY(-5px)",
-  },
   statIcon: {
-    fontSize: "2.5rem",
-    marginBottom: "15px",
+    fontSize: "2rem",
+    marginBottom: "8px",
   },
   statContent: {
-    marginBottom: "10px",
+    marginBottom: "5px",
   },
   statNumber: {
-    margin: "0 0 5px 0",
-    fontSize: "2.5rem",
+    margin: "0 0 3px 0",
+    fontSize: "1.8rem",
     fontWeight: "700",
     color: "#2d3748",
   },
   statLabel: {
     margin: 0,
     color: "#718096",
-    fontWeight: "500",
-    fontSize: "0.95rem",
+    fontSize: "0.8rem",
   },
   statTrend: {
     position: "absolute",
-    top: "20px",
-    right: "20px",
+    top: "12px",
+    right: "12px",
     background: "rgba(16, 185, 129, 0.1)",
     color: "#10b981",
-    padding: "4px 8px",
-    borderRadius: "12px",
-    fontSize: "0.8rem",
-    fontWeight: "600",
+    padding: "2px 6px",
+    borderRadius: "10px",
+    fontSize: "0.7rem",
   },
   progressSection: {
     background: "rgba(255, 255, 255, 0.95)",
-    backdropFilter: "blur(10px)",
-    borderRadius: "15px",
-    padding: "25px",
-    marginBottom: "30px",
-    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.1)",
+    borderRadius: "12px",
+    padding: "20px",
+    marginBottom: "20px",
   },
   progressHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "20px",
+    marginBottom: "15px",
   },
   progressTitle: {
     margin: 0,
-    color: "#2d3748",
-    fontSize: "1.3rem",
+    fontSize: "1rem",
     fontWeight: "600",
+    color: "#2d3748",
   },
   progressLabels: {
     display: "flex",
+    gap: "10px",
     alignItems: "center",
-    gap: "15px",
   },
   progressLabel: {
     color: "#718096",
-    fontSize: "0.9rem",
+    fontSize: "0.8rem",
   },
   percentageText: {
-    fontSize: "1.5rem",
+    fontSize: "1.2rem",
     fontWeight: "700",
     color: "#2d3748",
   },
   progressBarContainer: {
-    marginBottom: "10px",
+    marginBottom: "5px",
   },
   progressBar: {
-    height: "12px",
+    height: "8px",
     background: "#e2e8f0",
     borderRadius: "10px",
     overflow: "hidden",
-    marginBottom: "8px",
   },
   progressFill: {
     height: "100%",
     borderRadius: "10px",
     transition: "all 0.3s ease",
-    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
   },
   progressMarkers: {
     display: "flex",
     justifyContent: "space-between",
     color: "#718096",
-    fontSize: "0.8rem",
-    fontWeight: "500",
+    fontSize: "0.7rem",
+    marginTop: "5px",
   },
   recentCard: {
     background: "rgba(255, 255, 255, 0.95)",
-    backdropFilter: "blur(10px)",
-    borderRadius: "15px",
-    padding: "25px",
-    marginBottom: "30px",
-    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.1)",
+    borderRadius: "12px",
+    padding: "20px",
+    marginBottom: "20px",
   },
   cardHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "20px",
+    marginBottom: "15px",
   },
   cardTitle: {
     margin: 0,
-    color: "#2d3748",
-    fontSize: "1.3rem",
+    fontSize: "1rem",
     fontWeight: "600",
+    color: "#2d3748",
   },
   viewAll: {
-    color: "#667eea",
-    fontSize: "0.9rem",
-    fontWeight: "500",
+    color: "#f58003",
+    fontSize: "0.8rem",
   },
   historyList: {
     display: "flex",
     flexDirection: "column",
-    gap: "12px",
+    gap: "8px",
   },
   historyItem: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "15px",
+    padding: "12px",
     background: "#f7fafc",
-    borderRadius: "10px",
-    transition: "all 0.3s ease",
-  },
-  historyItemHover: {
-    background: "#edf2f7",
-    transform: "translateX(5px)",
+    borderRadius: "8px",
   },
   historyDate: {
     display: "flex",
     flexDirection: "column",
-    gap: "4px",
+    gap: "2px",
   },
   historyDay: {
     fontWeight: "600",
     color: "#2d3748",
-    fontSize: "0.95rem",
+    fontSize: "0.85rem",
   },
   historyFullDate: {
     color: "#718096",
-    fontSize: "0.85rem",
+    fontSize: "0.7rem",
   },
   historyCard: {
     background: "rgba(255, 255, 255, 0.95)",
-    backdropFilter: "blur(10px)",
-    borderRadius: "15px",
-    padding: "25px",
-    marginBottom: "30px",
-    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.1)",
+    borderRadius: "12px",
+    padding: "20px",
+    marginBottom: "20px",
   },
   fullHistoryList: {
     display: "flex",
     flexDirection: "column",
-    gap: "10px",
-    maxHeight: "600px",
+    gap: "8px",
+    maxHeight: "500px",
     overflowY: "auto",
   },
   fullHistoryItem: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "15px",
+    padding: "12px",
     background: "#f7fafc",
-    borderRadius: "10px",
-    transition: "all 0.3s ease",
+    borderRadius: "8px",
   },
   historyInfo: {
     flex: 1,
   },
+  calendarCard: {
+    background: "rgba(255, 255, 255, 0.95)",
+    borderRadius: "12px",
+    padding: "20px",
+    marginBottom: "20px",
+  },
+  calendar: {
+    marginBottom: "15px",
+  },
+  weekdays: {
+    display: "grid",
+    gridTemplateColumns: "repeat(7, 1fr)",
+    textAlign: "center",
+    marginBottom: "10px",
+  },
+  weekday: {
+    padding: "8px",
+    fontWeight: "600",
+    color: "#2d3748",
+    fontSize: "0.8rem",
+  },
+  calendarWeek: {
+    display: "grid",
+    gridTemplateColumns: "repeat(7, 1fr)",
+    gap: "2px",
+  },
+  calendarDay: {
+    aspectRatio: "1",
+    padding: "4px",
+  },
+  dayContent: {
+    width: "100%",
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "8px",
+    transition: "all 0.3s ease",
+  },
+  dayPresent: {
+    backgroundColor: "#10b981",
+    color: "white",
+  },
+  dayAbsent: {
+    backgroundColor: "#ef4444",
+    color: "white",
+  },
+  dayNotMarked: {
+    backgroundColor: "#f3f4f6",
+    color: "#9ca3af",
+  },
+  dayNumber: {
+    fontSize: "0.8rem",
+    fontWeight: "600",
+  },
+  dayStatus: {
+    fontSize: "0.7rem",
+  },
+  emptyDay: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "transparent",
+  },
+  calendarLegend: {
+    display: "flex",
+    justifyContent: "center",
+    gap: "20px",
+    marginTop: "15px",
+  },
+  legendItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    fontSize: "0.7rem",
+    color: "#718096",
+  },
+  legendColor: {
+    width: "12px",
+    height: "12px",
+    borderRadius: "3px",
+  },
   analyticsContainer: {
     background: "rgba(255, 255, 255, 0.95)",
-    backdropFilter: "blur(10px)",
-    borderRadius: "15px",
-    padding: "25px",
-    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.1)",
-  },
-  analyticsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))",
-    gap: "30px",
-  },
-  analyticsCard: {
-    background: "#f7fafc",
     borderRadius: "12px",
     padding: "20px",
   },
+  analyticsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+    gap: "20px",
+  },
+  analyticsCard: {
+    background: "#f8f9fa",
+    borderRadius: "12px",
+    padding: "15px",
+  },
   analyticsTitle: {
-    margin: "0 0 20px 0",
-    color: "#2d3748",
-    fontSize: "1.2rem",
+    margin: "0 0 15px 0",
+    fontSize: "1rem",
     fontWeight: "600",
+    color: "#2d3748",
   },
   monthlyStats: {
     display: "flex",
     flexDirection: "column",
-    gap: "15px",
+    gap: "12px",
   },
   monthlyItem: {
     display: "flex",
     flexDirection: "column",
-    gap: "8px",
+    gap: "5px",
   },
   monthInfo: {
     display: "flex",
@@ -907,16 +1120,16 @@ const styles = {
   monthName: {
     fontWeight: "600",
     color: "#2d3748",
-    fontSize: "0.95rem",
+    fontSize: "0.85rem",
   },
   monthNumbers: {
     color: "#718096",
-    fontSize: "0.85rem",
+    fontSize: "0.75rem",
   },
   monthProgressContainer: {
     display: "flex",
     alignItems: "center",
-    gap: "10px",
+    gap: "8px",
   },
   monthProgress: {
     flex: 1,
@@ -928,105 +1141,93 @@ const styles = {
   monthProgressFill: {
     height: "100%",
     borderRadius: "10px",
-    transition: "all 0.3s ease",
+    transition: "width 0.3s ease",
   },
   monthPercentage: {
     width: "40px",
     textAlign: "right",
     fontWeight: "600",
     color: "#2d3748",
-    fontSize: "0.9rem",
+    fontSize: "0.85rem",
   },
   insights: {
     display: "flex",
     flexDirection: "column",
-    gap: "15px",
+    gap: "12px",
   },
   insightItem: {
     display: "flex",
     alignItems: "center",
-    gap: "15px",
-    padding: "15px",
+    gap: "12px",
+    padding: "12px",
     background: "white",
-    borderRadius: "10px",
+    borderRadius: "8px",
   },
   insightIcon: {
     fontSize: "1.5rem",
   },
   insightTitle: {
     color: "#718096",
-    fontSize: "0.9rem",
-    marginBottom: "4px",
+    fontSize: "0.7rem",
+    marginBottom: "2px",
   },
   insightValue: {
     color: "#2d3748",
-    fontSize: "1.1rem",
+    fontSize: "0.9rem",
     fontWeight: "600",
   },
   noData: {
     textAlign: "center",
     color: "#718096",
-    padding: "40px 20px",
+    padding: "30px",
   },
   noDataIcon: {
-    fontSize: "3rem",
-    marginBottom: "15px",
+    fontSize: "2rem",
+    marginBottom: "8px",
     opacity: 0.5,
   },
   noDataSub: {
-    fontSize: "0.9rem",
-    marginTop: "8px",
+    fontSize: "0.8rem",
+    marginTop: "5px",
     opacity: 0.7,
   },
   footer: {
     maxWidth: "1200px",
     margin: "0 auto",
-    padding: "20px",
+    padding: "15px 20px",
     textAlign: "center",
-    borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+    borderTop: "1px solid rgba(255,255,255,0.1)",
   },
   lastUpdated: {
-    color: "rgba(255, 255, 255, 0.8)",
-    fontSize: "0.9rem",
-    marginBottom: "8px",
+    color: "rgba(255,255,255,0.8)",
+    fontSize: "0.8rem",
+    marginBottom: "5px",
   },
   updateIcon: {
-    marginRight: "8px",
+    marginRight: "5px",
   },
   footerNote: {
-    color: "rgba(255, 255, 255, 0.6)",
-    fontSize: "0.8rem",
+    color: "rgba(255,255,255,0.6)",
+    fontSize: "0.7rem",
   },
 };
 
-// Add hover effects
-Object.assign(styles.statCard, {
-  ':hover': {
-    transform: "translateY(-5px)",
-  },
-});
-
-Object.assign(styles.historyItem, {
-  ':hover': {
-    background: "#edf2f7",
-    transform: "translateX(5px)",
-  },
-});
-
-Object.assign(styles.fullHistoryItem, {
-  ':hover': {
-    background: "#edf2f7",
-    transform: "translateX(5px)",
-  },
-});
-
-// Add keyframes for spinner
-const styleSheet = document.styleSheets[0];
-styleSheet.insertRule(`
+// Add CSS animations
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
-`, styleSheet.cssRules.length);
+  
+  button:hover {
+    transform: translateY(-2px);
+  }
+  
+  button:active {
+    transform: scale(0.98);
+  }
+`;
+document.head.appendChild(styleSheet);
 
 export default StudentAttendance;

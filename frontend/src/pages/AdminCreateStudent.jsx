@@ -1,14 +1,49 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 function AdminCreateStudent() {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    section: "",
+  const navigate = useNavigate();
+  
+  // Load saved data from localStorage on mount
+  const loadSavedData = () => {
+    const saved = localStorage.getItem("studentFormData");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  };
+  
+  const [formData, setFormData] = useState(() => {
+    const saved = loadSavedData();
+    return saved || {
+      name: "",
+      email: "",
+      password: "",
+      section: "",
+      enrollmentId: "",
+      department: "",
+      semester: "1"
+    };
   });
+  
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Save form data to localStorage on every change
+  useEffect(() => {
+    localStorage.setItem("studentFormData", JSON.stringify(formData));
+  }, [formData]);
+
+  // Clear saved data after successful submission
+  const clearSavedData = () => {
+    localStorage.removeItem("studentFormData");
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -17,6 +52,8 @@ function AdminCreateStudent() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setMessage("");
+    setMessageType("");
 
     try {
       const res = await fetch("http://localhost:5001/api/users/create-student", {
@@ -26,20 +63,69 @@ function AdminCreateStudent() {
       });
 
       const data = await res.json();
+      
       if (data.success) {
-        setMessage("✅ Student created successfully!");
-        setFormData({ name: "", email: "", password: "", section: "" });
+        setMessageType("success");
+        setMessage(`✅ Student created successfully! Password is: ${formData.password || formData.email}`);
+        
+        // Clear saved data after successful submission
+        clearSavedData();
+        
+        // Reset form
+        setFormData({
+          name: "",
+          email: "",
+          password: "",
+          section: "",
+          enrollmentId: "",
+          department: "",
+          semester: "1"
+        });
+        
         // Clear success message after 3 seconds
         setTimeout(() => setMessage(""), 3000);
       } else {
-        setMessage("❌ " + data.message);
+        setMessageType("error");
+        setMessage(`❌ ${data.message || "Failed to create student"}`);
       }
     } catch (err) {
+      console.error("Error creating student:", err);
+      setMessageType("error");
       setMessage("⚠️ Server error, please try again.");
-      console.error(err);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleClear = () => {
+    setFormData({
+      name: "",
+      email: "",
+      password: "",
+      section: "",
+      enrollmentId: "",
+      department: "",
+      semester: "1"
+    });
+    // Clear saved data when clearing form
+    clearSavedData();
+  };
+
+  const handleBack = () => {
+    navigate("/admin-dashboard");
+  };
+
+  // Generate enrollment ID automatically
+  const generateEnrollmentId = () => {
+    const year = new Date().getFullYear();
+    const random = Math.floor(Math.random() * 10000);
+    const enrollmentId = `REG${year}${random}`;
+    setFormData({ ...formData, enrollmentId });
+  };
+
+  // Validate email format
+  const isValidEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
   return (
@@ -48,6 +134,9 @@ function AdminCreateStudent() {
       <div style={styles.header}>
         <div style={styles.headerContent}>
           <div style={styles.titleSection}>
+            <button onClick={handleBack} style={styles.backBtn}>
+              ← Back to Dashboard
+            </button>
             <h1 style={styles.title}> Create Student</h1>
             <p style={styles.subtitle}>Add new students to the system</p>
           </div>
@@ -73,11 +162,11 @@ function AdminCreateStudent() {
 
           <form onSubmit={handleSubmit} style={styles.form}>
             <div style={styles.formGrid}>
-              {/* Name Field */}
+              {/* Full Name Field */}
               <div style={styles.inputGroup}>
                 <label style={styles.label}>
                   <span style={styles.labelIcon}>👤</span>
-                  Full Name
+                  Full Name *
                 </label>
                 <input
                   name="name"
@@ -94,18 +183,24 @@ function AdminCreateStudent() {
               <div style={styles.inputGroup}>
                 <label style={styles.label}>
                   <span style={styles.labelIcon}>📧</span>
-                  Email Address
+                  Email Address *
                 </label>
                 <input
                   name="email"
                   type="email"
-                  placeholder="student@lpu.in"
+                  placeholder="student@lpu.edu.in"
                   value={formData.email}
                   onChange={handleChange}
-                  style={styles.input}
+                  style={{
+                    ...styles.input,
+                    ...(formData.email && !isValidEmail(formData.email) ? styles.inputError : {})
+                  }}
                   required
                   disabled={isSubmitting}
                 />
+                <div style={styles.hintText}>
+                  Password will be set to this email by default
+                </div>
               </div>
 
               {/* Password Field */}
@@ -114,27 +209,114 @@ function AdminCreateStudent() {
                   <span style={styles.labelIcon}>🔒</span>
                   Password
                 </label>
-                <input
-                  name="password"
-                  type="password"
-                  placeholder="Create a secure password"
-                  value={formData.password}
+                <div style={styles.passwordContainer}>
+                  <input
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Leave blank to use email as password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    style={{...styles.input, paddingRight: "40px"}}
+                    disabled={isSubmitting}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={styles.passwordToggle}
+                  >
+                    {showPassword ? "🙈" : "👁️"}
+                  </button>
+                </div>
+                <div style={styles.hintText}>
+                  Optional - Default password will be student's email
+                </div>
+              </div>
+
+              {/* Enrollment ID Field */}
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>
+                  <span style={styles.labelIcon}>🆔</span>
+                  Enrollment ID
+                </label>
+                <div style={styles.inputGroupFlex}>
+                  <input
+                    name="enrollmentId"
+                    placeholder="Auto-generated if left blank"
+                    value={formData.enrollmentId}
+                    onChange={handleChange}
+                    style={{...styles.input, flex: 1}}
+                    disabled={isSubmitting}
+                  />
+                  <button
+                    type="button"
+                    onClick={generateEnrollmentId}
+                    style={styles.generateBtn}
+                    disabled={isSubmitting}
+                  >
+                    Generate
+                  </button>
+                </div>
+                <div style={styles.hintText}>
+                  Unique identifier for the student
+                </div>
+              </div>
+
+              {/* Department Field */}
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>
+                  <span style={styles.labelIcon}>🏛️</span>
+                  Department *
+                </label>
+                <select
+                  name="department"
+                  value={formData.department}
                   onChange={handleChange}
-                  style={styles.input}
+                  style={styles.select}
                   required
                   disabled={isSubmitting}
-                  minLength="6"
-                />
-                <div style={styles.passwordHint}>
-                  Minimum 6 characters required
-                </div>
+                >
+                  <option value="">Select Department</option>
+                  <option value="Computer Science & Engineering">Computer Science & Engineering</option>
+                  <option value="Electronics & Communication Engineering">Electronics & Communication Engineering</option>
+                  <option value="Mechanical Engineering">Mechanical Engineering</option>
+                  <option value="Civil Engineering">Civil Engineering</option>
+                  <option value="Electrical Engineering">Electrical Engineering</option>
+                  <option value="Information Technology">Information Technology</option>
+                  <option value="Business Administration">Business Administration</option>
+                  <option value="Management Studies">Management Studies</option>
+                </select>
+              </div>
+
+              {/* Semester Field */}
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>
+                  <span style={styles.labelIcon}>📚</span>
+                  Semester *
+                </label>
+                <select
+                  name="semester"
+                  value={formData.semester}
+                  onChange={handleChange}
+                  style={styles.select}
+                  required
+                  disabled={isSubmitting}
+                >
+                  <option value="1">1st Semester</option>
+                  <option value="2">2nd Semester</option>
+                  <option value="3">3rd Semester</option>
+                  <option value="4">4th Semester</option>
+                  <option value="5">5th Semester</option>
+                  <option value="6">6th Semester</option>
+                  <option value="7">7th Semester</option>
+                  <option value="8">8th Semester</option>
+                </select>
               </div>
 
               {/* Section Field */}
               <div style={styles.inputGroup}>
                 <label style={styles.label}>
                   <span style={styles.labelIcon}>🏫</span>
-                  Section
+                  Section *
                 </label>
                 <select
                   name="section"
@@ -145,14 +327,14 @@ function AdminCreateStudent() {
                   disabled={isSubmitting}
                 >
                   <option value="">Select Section</option>
-                  <option value="A1">A1</option>
-                  <option value="A2">A2</option>
-                  <option value="B1">B1</option>
-                  <option value="B2">B2</option>
-                  <option value="C1">C1</option>
-                  <option value="C2">C2</option>
-                  <option value="D1">D1</option>
-                  <option value="D2">D2</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="D">D</option>
+                  <option value="E">E</option>
+                  <option value="F">F</option>
+                  <option value="G">G</option>
+                  <option value="H">H</option>
                 </select>
               </div>
             </div>
@@ -166,7 +348,7 @@ function AdminCreateStudent() {
                     ? { ...styles.submitButton, ...styles.submitButtonLoading }
                     : styles.submitButton
                 }
-                disabled={isSubmitting || !formData.name || !formData.email || !formData.password || !formData.section}
+                disabled={isSubmitting || !formData.name || !formData.email || !formData.department || !formData.section}
               >
                 {isSubmitting ? (
                   <>
@@ -175,7 +357,7 @@ function AdminCreateStudent() {
                   </>
                 ) : (
                   <>
-                   
+                    <span>🎓</span>
                     Create Student Account
                   </>
                 )}
@@ -183,11 +365,11 @@ function AdminCreateStudent() {
 
               <button
                 type="button"
-                onClick={() => setFormData({ name: "", email: "", password: "", section: "" })}
+                onClick={handleClear}
                 style={styles.clearButton}
                 disabled={isSubmitting}
               >
-                <span style={styles.buttonIcon}>🗑️</span>
+                <span>🗑️</span>
                 Clear Form
               </button>
             </div>
@@ -196,15 +378,15 @@ function AdminCreateStudent() {
           {/* Status Message */}
           {message && (
             <div style={
-              message.includes("✅") 
+              messageType === "success" 
                 ? styles.successMessage 
-                : message.includes("❌") 
+                : messageType === "error"
                 ? styles.errorMessage 
                 : styles.warningMessage
             }>
               <div style={styles.messageContent}>
                 <span style={styles.messageIcon}>
-                  {message.includes("✅") ? "✅" : message.includes("❌") ? "❌" : "⚠️"}
+                  {messageType === "success" ? "✅" : messageType === "error" ? "❌" : "⚠️"}
                 </span>
                 <span>{message}</span>
               </div>
@@ -214,10 +396,10 @@ function AdminCreateStudent() {
 
         {/* Information Card */}
         <div style={styles.infoCard}>
-          <h4 style={styles.infoTitle}> Quick Guidelines</h4>
+          <h4 style={styles.infoTitle}>📌 Quick Guidelines</h4>
           <div style={styles.infoGrid}>
             <div style={styles.infoItem}>
-              <div style={styles.infoIcon}></div>
+              <div style={styles.infoIcon}>👤</div>
               <div>
                 <div style={styles.infoItemTitle}>Full Name</div>
                 <div style={styles.infoItemText}>Use proper capitalization</div>
@@ -227,21 +409,35 @@ function AdminCreateStudent() {
               <div style={styles.infoIcon}>📧</div>
               <div>
                 <div style={styles.infoItemTitle}>Email</div>
-                <div style={styles.infoItemText}>Must be unique</div>
+                <div style={styles.infoItemText}>Must be unique across system</div>
               </div>
             </div>
             <div style={styles.infoItem}>
               <div style={styles.infoIcon}>🔒</div>
               <div>
                 <div style={styles.infoItemTitle}>Password</div>
-                <div style={styles.infoItemText}>Min. 6 characters</div>
+                <div style={styles.infoItemText}>Leave blank to use email</div>
               </div>
             </div>
             <div style={styles.infoItem}>
-              <div style={styles.infoIcon}>🏫</div>
+              <div style={styles.infoIcon}>🆔</div>
               <div>
-                <div style={styles.infoItemTitle}>Section</div>
-                <div style={styles.infoItemText}>Select from dropdown</div>
+                <div style={styles.infoItemTitle}>Enrollment ID</div>
+                <div style={styles.infoItemText}>Auto-generated if blank</div>
+              </div>
+            </div>
+            <div style={styles.infoItem}>
+              <div style={styles.infoIcon}>🏛️</div>
+              <div>
+                <div style={styles.infoItemTitle}>Department</div>
+                <div style={styles.infoItemText}>Select from available options</div>
+              </div>
+            </div>
+            <div style={styles.infoItem}>
+              <div style={styles.infoIcon}>📚</div>
+              <div>
+                <div style={styles.infoItemTitle}>Semester</div>
+                <div style={styles.infoItemText}>1st to 8th semester</div>
               </div>
             </div>
           </div>
@@ -249,27 +445,34 @@ function AdminCreateStudent() {
 
         {/* Stats Card */}
         <div style={styles.statsCard}>
-          <h4 style={styles.statsTitle}>📊 System Information</h4>
+          <h4 style={styles.statsTitle}>📊 Important Notes</h4>
           <div style={styles.statsGrid}>
             <div style={styles.statItem}>
               <div style={styles.statIcon}>⚡</div>
               <div style={styles.statContent}>
                 <div style={styles.statNumber}>Instant</div>
-                <div style={styles.statLabel}>Registration</div>
+                <div style={styles.statLabel}>Account Creation</div>
               </div>
             </div>
             <div style={styles.statItem}>
               <div style={styles.statIcon}>🔐</div>
               <div style={styles.statContent}>
                 <div style={styles.statNumber}>Secure</div>
-                <div style={styles.statLabel}>Data Storage</div>
+                <div style={styles.statLabel}>Password Hashing</div>
               </div>
             </div>
             <div style={styles.statItem}>
               <div style={styles.statIcon}>📱</div>
               <div style={styles.statContent}>
                 <div style={styles.statNumber}>Real-time</div>
-                <div style={styles.statLabel}>Access</div>
+                <div style={styles.statLabel}>Portal Access</div>
+              </div>
+            </div>
+            <div style={styles.statItem}>
+              <div style={styles.statIcon}>📧</div>
+              <div style={styles.statContent}>
+                <div style={styles.statNumber}>Email as</div>
+                <div style={styles.statLabel}>Default Password</div>
               </div>
             </div>
           </div>
@@ -303,6 +506,19 @@ const styles = {
   },
   titleSection: {
     flex: 1,
+  },
+  backBtn: {
+    background: "rgba(255, 255, 255, 0.2)",
+    color: "white",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontSize: "0.9rem",
+    fontWeight: "500",
+    marginBottom: "10px",
+    display: "inline-block",
+    transition: "all 0.3s ease",
   },
   title: {
     color: "white",
@@ -387,6 +603,11 @@ const styles = {
     flexDirection: "column",
     gap: "8px",
   },
+  inputGroupFlex: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "center",
+  },
   label: {
     color: "#2d3748",
     fontSize: "1rem",
@@ -407,6 +628,24 @@ const styles = {
     transition: "all 0.3s ease",
     background: "white",
   },
+  inputError: {
+    borderColor: "#e53e3e",
+    backgroundColor: "#fff5f5",
+  },
+  passwordContainer: {
+    position: "relative",
+  },
+  passwordToggle: {
+    position: "absolute",
+    right: "12px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "1.2rem",
+    padding: "0",
+  },
   select: {
     padding: "15px",
     border: "2px solid #e2e8f0",
@@ -417,10 +656,21 @@ const styles = {
     background: "white",
     cursor: "pointer",
   },
-  passwordHint: {
+  generateBtn: {
+    background: "linear-gradient(135deg, #ff6d00, #e65100)",
+    color: "white",
+    border: "none",
+    padding: "0 20px",
+    borderRadius: "10px",
+    cursor: "pointer",
+    fontWeight: "600",
+    whiteSpace: "nowrap",
+    transition: "all 0.3s ease",
+  },
+  hintText: {
     color: "#718096",
-    fontSize: "0.85rem",
-    marginTop: "5px",
+    fontSize: "0.75rem",
+    marginTop: "4px",
   },
   buttonGroup: {
     display: "flex",
@@ -432,14 +682,15 @@ const styles = {
     background: "linear-gradient(135deg, #ff6d00, #e65100)",
     color: "white",
     border: "none",
-    padding: "18px 30px",
+    padding: "16px 30px",
     borderRadius: "12px",
-    fontSize: "1.1rem",
+    fontSize: "1rem",
     fontWeight: "600",
     cursor: "pointer",
     transition: "all 0.3s ease",
     display: "flex",
     alignItems: "center",
+    justifyContent: "center",
     gap: "12px",
     boxShadow: "0 4px 15px rgba(255, 109, 0, 0.3)",
     flex: 1,
@@ -447,12 +698,13 @@ const styles = {
   submitButtonLoading: {
     background: "#a0aec0",
     cursor: "not-allowed",
+    boxShadow: "none",
   },
   clearButton: {
     background: "transparent",
     color: "#718096",
     border: "2px solid #e2e8f0",
-    padding: "16px 25px",
+    padding: "14px 25px",
     borderRadius: "12px",
     fontSize: "1rem",
     fontWeight: "500",
@@ -461,9 +713,6 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "8px",
-  },
-  buttonIcon: {
-    fontSize: "1.2rem",
   },
   spinner: {
     width: "18px",
@@ -477,19 +726,22 @@ const styles = {
     background: "#f0fff4",
     border: "1px solid #9ae6b4",
     borderRadius: "12px",
-    padding: "20px",
+    padding: "16px",
+    marginTop: "20px",
   },
   errorMessage: {
     background: "#fff5f5",
     border: "1px solid #feb2b2",
     borderRadius: "12px",
-    padding: "20px",
+    padding: "16px",
+    marginTop: "20px",
   },
   warningMessage: {
     background: "#fffaf0",
     border: "1px solid #faf089",
     borderRadius: "12px",
-    padding: "20px",
+    padding: "16px",
+    marginTop: "20px",
   },
   messageContent: {
     display: "flex",
@@ -585,45 +837,32 @@ const styles = {
   },
 };
 
-// Add hover effects
-Object.assign(styles.submitButton, {
-  ':hover': {
-    transform: "translateY(-2px)",
-    boxShadow: "0 6px 20px rgba(255, 109, 0, 0.4)",
-  },
-});
-
-Object.assign(styles.clearButton, {
-  ':hover': {
-    borderColor: "#ff6d00",
-    color: "#ff6d00",
-    transform: "translateY(-1px)",
-  },
-});
-
-Object.assign(styles.input, {
-  ':focus': {
-    borderColor: "#ff6d00",
-    boxShadow: "0 0 0 3px rgba(255, 109, 0, 0.1)",
-    outline: "none",
-  },
-});
-
-Object.assign(styles.select, {
-  ':focus': {
-    borderColor: "#ff6d00",
-    boxShadow: "0 0 0 3px rgba(255, 109, 0, 0.1)",
-    outline: "none",
-  },
-});
-
-// Add keyframes for spinner
-const styleSheet = document.styleSheets[0];
-styleSheet.insertRule(`
+// Add CSS animations
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
-`, styleSheet.cssRules.length);
+  
+  button:hover {
+    transform: translateY(-2px);
+  }
+  
+  button:active {
+    transform: translateY(0);
+  }
+  
+  input:focus, select:focus {
+    border-color: #ff6d00;
+    box-shadow: 0 0 0 3px rgba(255, 109, 0, 0.1);
+    outline: none;
+  }
+  
+  .back-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+`;
+document.head.appendChild(styleSheet);
 
 export default AdminCreateStudent;
