@@ -1,11 +1,13 @@
+// backend/routes/userRoutes.js
 import express from "express";
-import { User } from "../models/User.js";
+import { Student } from "../models/Student.js"; // ✅ Changed from User to Student
+import { Staff } from "../models/Staff.js";
 import Exam from "../models/Exam.js";
 import Class from "../models/Class.js";
 import Fee from "../models/Fee.js";
+import bcrypt from "bcryptjs";
 import {
   createStudent,
-  loginUser,
   updateStudentField,
   notifyAllStudents,
   getAllNotifications,
@@ -17,132 +19,250 @@ import {
 const router = express.Router();
 
 // ========================
-// 🔹 AUTH & STUDENT CREATION
-// ========================
-router.post("/create-student", createStudent);
-router.post("/login", loginUser);
-
-// ========================
 // 🔹 STUDENT MANAGEMENT
 // ========================
 
-// ✅ Get all registered students
+router.post("/create-student", createStudent);
+
 router.get("/students", async (req, res) => {
   try {
-    const students = await User.find({ role: "Student" });
-    if (!students || students.length === 0) {
-      return res.json({ success: true, students: [] });
-    }
-    res.json({ success: true, students });
+    const students = await Student.find({ role: "Student" }).select('-password');
+    res.json({ success: true, students: students || [] });
   } catch (err) {
-    console.error("Error fetching students:", err);
-    res.status(500).json({ success: false, message: "Server error fetching students" });
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// ✅ Update any generic field (ADD THIS ROUTE)
 router.post("/update-field", updateStudentField);
 
-// ========================
-// 🔹 ATTENDANCE ROUTES (FIXED)
-// ========================
-
-// Get all attendance records
-router.get('/attendance', async (req, res) => {
+router.post("/delete-student", async (req, res) => {
   try {
-    // Get all students with their attendance data
-    const students = await User.find({ role: "Student" }).select('email attendanceData');
-    
-    const records = {};
-    students.forEach(student => {
-      records[student.email] = student.attendanceData || {};
-    });
-    
-    res.json({
-      success: true,
-      records
-    });
-  } catch (error) {
-    console.error("Error fetching attendance:", error);
-    res.status(500).json({ success: false, error: error.message });
+    const { email } = req.body;
+    const deleted = await Student.findOneAndDelete({ email, role: "Student" });
+    if (!deleted) return res.status(404).json({ success: false, message: "Student not found" });
+    res.json({ success: true, message: "Student deleted" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// Mark attendance for a student
-router.post('/attendance/mark', async (req, res) => {
+// ========================
+// 🔹 STAFF MANAGEMENT
+// ========================
+
+// ✅ Create Staff Member with Password Hashing
+router.post("/create-staff", async (req, res) => {
+  console.log("📝 Create staff endpoint hit");
+  console.log("Request body:", req.body);
+  
   try {
-    const { studentEmail, date, status } = req.body;
-    
-    // Validate input
-    if (!studentEmail || !date || !status) {
+    const {
+      name,
+      email,
+      password,
+      employeeId,
+      department,
+      designation,
+      phoneNumber,
+      profilePicture,
+      qualification,
+      experience,
+      joinDate,
+      isClassTeacher,
+      classTeacherOf,
+      coursesTeaching,
+      bankAccountNumber,
+      bankName,
+      ifscCode,
+      address,
+      emergencyContact
+    } = req.body;
+
+    if (!name || !email || !employeeId || !department) {
       return res.status(400).json({ 
         success: false, 
-        message: "Missing required fields: studentEmail, date, status" 
+        message: "Missing required fields: name, email, employeeId, department are required" 
       });
     }
 
-    // Find student and update attendance
-    const student = await User.findOne({ email: studentEmail });
-    if (!student) {
-      return res.status(404).json({ 
+    const existingStaff = await Staff.findOne({ $or: [{ email }, { employeeId }] });
+    if (existingStaff) {
+      return res.status(400).json({ 
         success: false, 
-        message: "Student not found" 
+        message: "Staff with this email or employee ID already exists" 
       });
     }
 
-    // Initialize attendanceData if it doesn't exist
-    if (!student.attendanceData) {
-      student.attendanceData = {};
-    }
+    // ✅ HASH THE PASSWORD
+    const plainPassword = password || email;
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+    console.log("Password hashed for:", email);
 
-    // Update attendance for the specific date
-    student.attendanceData[date] = status;
+    const newStaff = new Staff({
+      name,
+      email,
+      password: hashedPassword,
+      employeeId,
+      department,
+      designation: designation || "Assistant Professor",
+      phoneNumber: phoneNumber || "",
+      profilePicture: profilePicture || "",
+      qualification: qualification || "",
+      experience: experience || "0",
+      joinDate: joinDate || new Date(),
+      isClassTeacher: isClassTeacher || false,
+      classTeacherOf: classTeacherOf || null,
+      coursesTeaching: coursesTeaching || [],
+      bankAccountNumber: bankAccountNumber || "",
+      bankName: bankName || "",
+      ifscCode: ifscCode || "",
+      address: address || "",
+      emergencyContact: emergencyContact || ""
+    });
+
+    await newStaff.save();
     
-    // Save the updated student
-    await student.save();
-    
+    console.log("✅ Staff created successfully:", newStaff.email);
+    console.log("Password is:", plainPassword, "(hashed in database)");
+
     res.json({ 
       success: true, 
-      message: `Attendance marked as ${status} for ${studentEmail} on ${date}` 
+      message: `Staff created successfully! Password is: ${plainPassword}`,
+      staff: {
+        name: newStaff.name,
+        email: newStaff.email,
+        employeeId: newStaff.employeeId,
+        department: newStaff.department
+      }
     });
+  } catch (err) {
+    console.error("Error creating staff:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: err.message || "Server error while creating staff" 
+    });
+  }
+});
+
+// ✅ Get all staff members
+router.get("/staff", async (req, res) => {
+  try {
+    const staff = await Staff.find().sort({ createdAt: -1 });
+    res.json({ success: true, staff });
+  } catch (err) {
+    console.error("Error fetching staff:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ✅ Get single staff by ID
+router.get("/staff/:id", async (req, res) => {
+  try {
+    const staff = await Staff.findById(req.params.id);
+    if (!staff) {
+      return res.status(404).json({ success: false, message: "Staff not found" });
+    }
+    res.json({ success: true, staff });
+  } catch (err) {
+    console.error("Error fetching staff:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ✅ Update staff details
+router.put("/staff/:id", async (req, res) => {
+  try {
+    // If password is being updated, hash it
+    if (req.body.password) {
+      req.body.password = await bcrypt.hash(req.body.password, 10);
+    }
+    
+    const updatedStaff = await Staff.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!updatedStaff) {
+      return res.status(404).json({ success: false, message: "Staff not found" });
+    }
+    res.json({ success: true, message: "Staff updated successfully", staff: updatedStaff });
+  } catch (err) {
+    console.error("Error updating staff:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ✅ Delete staff member
+router.delete("/staff/:id", async (req, res) => {
+  try {
+    const deletedStaff = await Staff.findByIdAndDelete(req.params.id);
+    if (!deletedStaff) {
+      return res.status(404).json({ success: false, message: "Staff not found" });
+    }
+    res.json({ success: true, message: "Staff deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting staff:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ========================
+// 🔹 ATTENDANCE ROUTES
+// ========================
+
+router.get('/attendance', async (req, res) => {
+  try {
+    const students = await Student.find({ role: "Student" }).select('email attendanceData name section');
+    const records = {};
+    students.forEach(student => {
+      records[student.email] = {
+        attendanceData: student.attendanceData || {},
+        name: student.name,
+        section: student.section
+      };
+    });
+    res.json({ success: true, records });
   } catch (error) {
-    console.error("Error marking attendance:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Bulk mark attendance
+router.post('/attendance/mark', markAttendance);
+
 router.post('/attendance/bulk-mark', async (req, res) => {
   try {
-    const { date, status, studentEmails } = req.body;
+    const { date, status, studentEmails, courseCode } = req.body;
     
-    // Validate input
     if (!date || !status || !studentEmails || !Array.isArray(studentEmails)) {
       return res.status(400).json({ 
         success: false, 
-        message: "Missing required fields: date, status, studentEmails" 
+        message: "Missing required fields" 
       });
     }
 
-    // Bulk update all students
-    const bulkOperations = studentEmails.map(email => ({
-      updateOne: {
-        filter: { email: email },
-        update: { 
-          $set: { 
-            [`attendanceData.${date}`]: status 
-          } 
-        }
+    let modifiedCount = 0;
+    for (const email of studentEmails) {
+      const student = await Student.findOne({ email });
+      if (student) {
+        if (!student.attendanceData) student.attendanceData = {};
+        const key = courseCode ? `${date}_${courseCode}` : date;
+        student.attendanceData[key] = status;
+        
+        // Update overall percentage
+        const totalRecords = Object.keys(student.attendanceData).length;
+        const presentCount = Object.values(student.attendanceData).filter(s => s === 'Present').length;
+        const percentage = totalRecords > 0 ? Math.round((presentCount / totalRecords) * 100) : 0;
+        student.attendance = `${percentage}%`;
+        
+        await student.save();
+        modifiedCount++;
       }
-    }));
-
-    // Execute bulk operation
-    const result = await User.bulkWrite(bulkOperations);
+    }
     
     res.json({ 
       success: true, 
-      message: `Bulk marked ${result.modifiedCount} students as ${status} on ${date}`,
-      modifiedCount: result.modifiedCount
+      message: `Bulk marked ${modifiedCount} students as ${status}`,
+      modifiedCount
     });
   } catch (error) {
     console.error("Error in bulk marking attendance:", error);
@@ -150,21 +270,10 @@ router.post('/attendance/bulk-mark', async (req, res) => {
   }
 });
 
-// Get student's attendance
 router.get('/attendance/student/:email', async (req, res) => {
   try {
-    const { email } = req.params;
-    
-    // Find student and get attendance data
-    const student = await User.findOne({ email: email }).select('attendanceData name email section');
-    
-    if (!student) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Student not found" 
-      });
-    }
-
+    const student = await Student.findOne({ email: req.params.email }).select('attendanceData name email section');
+    if (!student) return res.status(404).json({ success: false, message: "Student not found" });
     res.json({ 
       success: true, 
       attendance: {
@@ -177,15 +286,11 @@ router.get('/attendance/student/:email', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error fetching student attendance:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// ✅ Update marks  
 router.post("/update-marks", enterMarks);
-
-// ✅ Update section
 router.post("/update-section", allotSection);
 
 // ========================
@@ -208,8 +313,7 @@ router.get("/exams", async (req, res) => {
 
 router.post("/add-exam", async (req, res) => {
   try {
-    const { subject, date, time } = req.body;
-    const newExam = new Exam({ subject, date, time });
+    const newExam = new Exam(req.body);
     await newExam.save();
     res.json({ success: true, message: "Exam added!" });
   } catch (err) {
@@ -219,8 +323,7 @@ router.post("/add-exam", async (req, res) => {
 
 router.post("/delete-exam", async (req, res) => {
   try {
-    const { subject } = req.body;
-    await Exam.deleteOne({ subject });
+    await Exam.deleteOne({ subject: req.body.subject });
     res.json({ success: true, message: "Exam deleted!" });
   } catch (err) {
     res.json({ success: false, message: err.message });
@@ -241,8 +344,7 @@ router.get("/classes", async (req, res) => {
 
 router.post("/add-class", async (req, res) => {
   try {
-    const { subject, day, time } = req.body;
-    const newClass = new Class({ subject, day, time });
+    const newClass = new Class(req.body);
     await newClass.save();
     res.json({ success: true, message: "Class added!" });
   } catch (err) {
@@ -252,8 +354,7 @@ router.post("/add-class", async (req, res) => {
 
 router.post("/delete-class", async (req, res) => {
   try {
-    const { subject } = req.body;
-    await Class.deleteOne({ subject });
+    await Class.deleteOne({ subject: req.body.subject });
     res.json({ success: true, message: "Class deleted!" });
   } catch (err) {
     res.json({ success: false, message: err.message });
@@ -266,13 +367,7 @@ router.post("/delete-class", async (req, res) => {
 router.post("/fees/add", async (req, res) => {
   try {
     const { studentId, studentName, totalAmount, amountPaid } = req.body;
-    const status =
-      amountPaid >= totalAmount
-        ? "Paid"
-        : amountPaid > 0
-        ? "Partial"
-        : "Pending";
-
+    const status = amountPaid >= totalAmount ? "Paid" : amountPaid > 0 ? "Partial" : "Pending";
     const existing = await Fee.findOne({ studentId });
 
     if (existing) {
@@ -284,13 +379,7 @@ router.post("/fees/add", async (req, res) => {
       return res.json({ success: true, message: "Fee updated!" });
     }
 
-    const newFee = new Fee({
-      studentId,
-      studentName,
-      totalAmount,
-      amountPaid,
-      status,
-    });
+    const newFee = new Fee({ studentId, studentName, totalAmount, amountPaid, status });
     await newFee.save();
     res.json({ success: true, message: "Fee record added!" });
   } catch (err) {
@@ -298,7 +387,6 @@ router.post("/fees/add", async (req, res) => {
   }
 });
 
-// ✅ Get all fee records (Admin view)
 router.get("/fees", async (req, res) => {
   try {
     const fees = await Fee.find();
@@ -308,7 +396,6 @@ router.get("/fees", async (req, res) => {
   }
 });
 
-// ✅ Get single student's fee record (Student view)
 router.get("/fees/:studentId", async (req, res) => {
   try {
     const fee = await Fee.findOne({ studentId: req.params.studentId });
