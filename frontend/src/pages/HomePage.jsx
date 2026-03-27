@@ -174,12 +174,12 @@ function HomePage() {
 
   // Enhanced campus photos with better quality images
   const campusPhotos = [
-    { url: "https://images.unsplash.com/photo-1562774053-701939374585?w=800", title: "Academic Block", description: "State-of-the-art classrooms" },
-    { url: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=800", title: "Central Library", description: "Vast collection of books & e-resources" },
-    { url: "https://images.unsplash.com/photo-1577896851231-70ef18881754?w=800", title: "Hostel Complex", description: "Comfortable accommodation" },
-    { url: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800", title: "Sports Arena", description: "World-class sports facilities" },
+    { url: "https://www.lpu.in/lpu-assets/images/why-lpu/hero.jpg", title: "Academic Block", description: "State-of-the-art classrooms" },
+    { url: "https://happenings.lpu.in/wp-content/uploads/2020/11/spacious-floors-1024x584.jpg", title: "Central Library", description: "Vast collection of books & e-resources" },
+    { url: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT5rsoKyvx3wgjG7YH_DPNZIOw_wIfAwF8ESQ&s", title: "Hostel Complex", description: "Comfortable accommodation" },
+    { url: "https://pbs.twimg.com/media/GmYIN3-XIAEayN2.jpg", title: "Sports Arena", description: "World-class sports facilities" },
     { url: "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=800", title: "Central Plaza", description: "Vibrant student hub" },
-    { url: "https://images.unsplash.com/photo-1541823709867-1b206113eafd?w=800", title: "Innovation Hub", description: "Cutting-edge research labs" }
+    { url: "https://media.licdn.com/dms/image/v2/D4D12AQHce8AdiDJj9g/article-cover_image-shrink_600_2000/article-cover_image-shrink_600_2000/0/1684473386594?e=2147483647&v=beta&t=7EIaGOaR6vLWUKlGgnrJyw4aiyUw1twMHwoxsi6cAOU", title: "Innovation Hub", description: "Cutting-edge research labs" }
   ];
 
   // Achievements data
@@ -214,6 +214,7 @@ function HomePage() {
         <div style={styles.heroContent}>
           <div style={styles.heroBadge}>India's Largest Private University</div>
           <h1 style={styles.heroTitle}>Welcome to Lovely Professional University</h1>
+          <h3 style={styles.heroTitle}>Please Contact Us to Acces the Credentials and use the Features</h3>
           <p style={styles.heroSubtitle}>30,000+ Students | 500+ Acres Campus | 200+ Programs | 1,500+ Faculty</p>
           <div style={styles.heroButtons}>
             <button onClick={() => setShowStudentForm(true)} style={styles.admissionBtn}>
@@ -609,7 +610,7 @@ const styles = {
   },
   hero: {
     minHeight: "100vh",
-    backgroundImage: "url('https://images.unsplash.com/photo-1562774053-701939374585?w=1600')",
+    backgroundImage: "url('https://www.lpu.in/schools/business/images/beyondclass/amphitheatre.jpg')",
     backgroundSize: "cover",
     backgroundPosition: "center",
     position: "relative",

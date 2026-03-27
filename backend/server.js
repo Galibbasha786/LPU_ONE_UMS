@@ -20,6 +20,7 @@ import placementRoutes from "./routes/placementRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import {Notification} from "./models/Notification.js";
 import emailRoutes from './routes/emailRoutes.js';
+import campusClubRoutes from './routes/campusClubRoutes.js';
 const app = express();
 const server = http.createServer(app);
 
@@ -74,6 +75,7 @@ app.use("/api/fees", feeRoutes);
 app.use("/api/placement", placementRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/email", emailRoutes);
+app.use('/api/campus-clubs', campusClubRoutes);
 // ✅ UNIFIED LOGIN API
 app.post("/api/users/login", async (req, res) => {
   try {

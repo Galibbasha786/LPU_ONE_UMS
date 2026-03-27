@@ -1,3 +1,4 @@
+// src/pages/AdminDashboard.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import lpuLogo from "../assets/logo.jpg";
@@ -7,6 +8,7 @@ function AdminDashboard() {
   const user = JSON.parse(localStorage.getItem("user"));
   const [students, setStudents] = useState([]);
   const [staff, setStaff] = useState([]);
+  const [clubs, setClubs] = useState([]);
   const [selected, setSelected] = useState(null);
   const [editField, setEditField] = useState("");
   const [editValue, setEditValue] = useState("");
@@ -16,13 +18,66 @@ function AdminDashboard() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [showNotification, setShowNotification] = useState({ show: false, message: "", type: "" });
+  const [showClubModal, setShowClubModal] = useState(false);
+  const [editingClub, setEditingClub] = useState(null);
+  const [clubForm, setClubForm] = useState({
+    name: "",
+    shortName: "",
+    description: "",
+    category: "technical",
+    logo: "",
+    coverImage: "",
+    foundedDate: "",
+    motto: "",
+    vision: "",
+    mission: "",
+    facultyAdvisor: {
+      name: "",
+      email: "",
+      department: "",
+      phone: ""
+    },
+    socialLinks: {
+      instagram: "",
+      linkedin: "",
+      github: "",
+      website: ""
+    },
+    meetingSchedule: {
+      day: "Monday",
+      time: "",
+      venue: "",
+      frequency: "weekly"
+    }
+  });
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [showNewsModal, setShowNewsModal] = useState(false);
+  const [selectedClub, setSelectedClub] = useState(null);
+  const [eventForm, setEventForm] = useState({
+    title: "",
+    description: "",
+    date: "",
+    startTime: "",
+    endTime: "",
+    location: "",
+    type: "meetup",
+    maxParticipants: ""
+  });
+  const [newsForm, setNewsForm] = useState({
+    title: "",
+    content: "",
+    type: "announcement",
+    importance: "normal"
+  });
+
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalStaff: 0,
     presentToday: 0,
     pendingFees: 0,
     excellentMarks: 0,
-    totalCourses: 0
+    totalCourses: 0,
+    totalClubs: 0
   });
 
   // Redirect if not admin
@@ -51,7 +106,12 @@ function AdminDashboard() {
       const staffData = await staffRes.json();
       setStaff(staffData.staff || []);
       
-      // Fetch attendance records to calculate present today
+      // Fetch clubs
+      const clubsRes = await fetch("http://localhost:5001/api/campus-clubs");
+      const clubsData = await clubsRes.json();
+      setClubs(clubsData.clubs || []);
+      
+      // Fetch attendance records
       const attendanceRes = await fetch("http://localhost:5001/api/users/attendance");
       const attendanceData = await attendanceRes.json();
       const today = new Date().toISOString().split('T')[0];
@@ -71,7 +131,8 @@ function AdminDashboard() {
         presentToday: presentCount,
         pendingFees: studentList.filter(s => s.fees === "Pending").length,
         excellentMarks: studentList.filter(s => parseInt(s.marks) >= 80).length,
-        totalCourses: 12 // Mock data, replace with actual API call
+        totalCourses: 12,
+        totalClubs: clubsData.clubs?.length || 0
       });
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -79,6 +140,205 @@ function AdminDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Club CRUD Operations
+  const handleCreateClub = async () => {
+    try {
+      const res = await fetch("http://localhost:5001/api/campus-clubs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(clubForm)
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Club created successfully!", "success");
+        setShowClubModal(false);
+        resetClubForm();
+        fetchAllData();
+      } else {
+        showToast(data.message || "Failed to create club", "error");
+      }
+    } catch (error) {
+      showToast("Error creating club", "error");
+    }
+  };
+
+  const handleUpdateClub = async () => {
+    try {
+      const res = await fetch(`http://localhost:5001/api/campus-clubs/${editingClub._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(clubForm)
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Club updated successfully!", "success");
+        setShowClubModal(false);
+        setEditingClub(null);
+        resetClubForm();
+        fetchAllData();
+      } else {
+        showToast(data.message || "Failed to update club", "error");
+      }
+    } catch (error) {
+      showToast("Error updating club", "error");
+    }
+  };
+
+  const handleDeleteClub = async (clubId) => {
+    if (!confirm("Are you sure you want to delete this club? This action cannot be undone.")) return;
+    
+    try {
+      const res = await fetch(`http://localhost:5001/api/campus-clubs/${clubId}`, {
+        method: "DELETE"
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Club deleted successfully!", "success");
+        fetchAllData();
+      } else {
+        showToast(data.message || "Failed to delete club", "error");
+      }
+    } catch (error) {
+      showToast("Error deleting club", "error");
+    }
+  };
+
+  const handleAddEvent = async () => {
+    if (!selectedClub) return;
+    
+    try {
+      const res = await fetch(`http://localhost:5001/api/campus-clubs/${selectedClub._id}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(eventForm)
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Event added successfully!", "success");
+        setShowEventModal(false);
+        resetEventForm();
+        fetchAllData();
+      } else {
+        showToast(data.message || "Failed to add event", "error");
+      }
+    } catch (error) {
+      showToast("Error adding event", "error");
+    }
+  };
+
+  const handleAddNews = async () => {
+    if (!selectedClub) return;
+    
+    try {
+      const res = await fetch(`http://localhost:5001/api/campus-clubs/${selectedClub._id}/news`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newsForm)
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("News added successfully!", "success");
+        setShowNewsModal(false);
+        resetNewsForm();
+        fetchAllData();
+      } else {
+        showToast(data.message || "Failed to add news", "error");
+      }
+    } catch (error) {
+      showToast("Error adding news", "error");
+    }
+  };
+
+  const resetClubForm = () => {
+    setClubForm({
+      name: "",
+      shortName: "",
+      description: "",
+      category: "technical",
+      logo: "",
+      coverImage: "",
+      foundedDate: "",
+      motto: "",
+      vision: "",
+      mission: "",
+      facultyAdvisor: {
+        name: "",
+        email: "",
+        department: "",
+        phone: ""
+      },
+      socialLinks: {
+        instagram: "",
+        linkedin: "",
+        github: "",
+        website: ""
+      },
+      meetingSchedule: {
+        day: "Monday",
+        time: "",
+        venue: "",
+        frequency: "weekly"
+      }
+    });
+  };
+
+  const resetEventForm = () => {
+    setEventForm({
+      title: "",
+      description: "",
+      date: "",
+      startTime: "",
+      endTime: "",
+      location: "",
+      type: "meetup",
+      maxParticipants: ""
+    });
+  };
+
+  const resetNewsForm = () => {
+    setNewsForm({
+      title: "",
+      content: "",
+      type: "announcement",
+      importance: "normal"
+    });
+  };
+
+  const openEditClub = (club) => {
+    setEditingClub(club);
+    setClubForm({
+      name: club.name,
+      shortName: club.shortName || "",
+      description: club.description,
+      category: club.category,
+      logo: club.logo || "",
+      coverImage: club.coverImage || "",
+      foundedDate: club.foundedDate?.split('T')[0] || "",
+      motto: club.motto || "",
+      vision: club.vision || "",
+      mission: club.mission || "",
+      facultyAdvisor: club.facultyAdvisor || {
+        name: "",
+        email: "",
+        department: "",
+        phone: ""
+      },
+      socialLinks: club.socialLinks || {
+        instagram: "",
+        linkedin: "",
+        github: "",
+        website: ""
+      },
+      meetingSchedule: club.meetingSchedule || {
+        day: "Monday",
+        time: "",
+        venue: "",
+        frequency: "weekly"
+      }
+    });
+    setShowClubModal(true);
   };
 
   // Filter students based on search
@@ -111,7 +371,7 @@ function AdminDashboard() {
       if (data.success) {
         showToast("✅ Updated successfully!", "success");
         setSelected(null);
-        fetchAllData(); // Refresh all data
+        fetchAllData();
       } else {
         showToast("❌ Failed to update: " + data.message, "error");
       }
@@ -256,6 +516,16 @@ function AdminDashboard() {
           </div>
 
           <div style={styles.sidebarSection}>
+            <h3 style={styles.sidebarTitle}>🏫 Campus Life</h3>
+            <button 
+              style={activeSection === "clubs" ? styles.sidebarBtnActive : styles.sidebarBtn}
+              onClick={() => setActiveSection("clubs")}
+            >
+              🎯 Campus Clubs
+            </button>
+          </div>
+
+          <div style={styles.sidebarSection}>
             <h3 style={styles.sidebarTitle}>📚 Academic</h3>
             <button onClick={() => navigate("/attendance")} style={styles.sidebarBtn}>
               ✅ Attendance Management
@@ -364,6 +634,14 @@ function AdminDashboard() {
                 </div>
                 
                 <div style={styles.statCard}>
+                  <div style={styles.statIcon}>🎯</div>
+                  <div style={styles.statInfo}>
+                    <h3 style={styles.statNumber}>{stats.totalClubs}</h3>
+                    <p style={styles.statLabel}>Campus Clubs</p>
+                  </div>
+                </div>
+                
+                <div style={styles.statCard}>
                   <div style={styles.statIcon}>✅</div>
                   <div style={styles.statInfo}>
                     <h3 style={styles.statNumber}>{stats.presentToday}</h3>
@@ -407,6 +685,10 @@ function AdminDashboard() {
                   <button onClick={() => navigate("/create-staff")} style={styles.actionBtn}>
                     <span style={styles.actionIcon}>👨‍🏫</span>
                     <span>Create Staff</span>
+                  </button>
+                  <button onClick={() => setActiveSection("clubs")} style={styles.actionBtn}>
+                    <span style={styles.actionIcon}>🎯</span>
+                    <span>Manage Clubs</span>
                   </button>
                   <button onClick={() => navigate("/attendance")} style={styles.actionBtn}>
                     <span style={styles.actionIcon}>✅</span>
@@ -606,8 +888,577 @@ function AdminDashboard() {
               </div>
             </div>
           )}
+
+          {activeSection === "clubs" && !loading && (
+            <div style={styles.clubsSection}>
+              <div style={styles.sectionHeader}>
+                <h2 style={styles.sectionTitle}>🎯 Campus Clubs Management</h2>
+                <div style={styles.headerActions}>
+                  <button 
+                    onClick={() => {
+                      setEditingClub(null);
+                      resetClubForm();
+                      setShowClubModal(true);
+                    }} 
+                    style={styles.addBtn}
+                  >
+                    <span>+</span> Create New Club
+                  </button>
+                </div>
+              </div>
+
+              <div style={styles.statsSummary}>
+                <div style={styles.summaryItem}>
+                  <span>Total Clubs:</span>
+                  <strong>{clubs.length}</strong>
+                </div>
+              </div>
+
+              {/* Clubs Grid */}
+              <div style={styles.clubsGrid}>
+                {clubs.map((club) => (
+                  <div key={club._id} style={styles.clubCard}>
+                    <div style={styles.clubCardHeader}>
+                      {club.coverImage && (
+                        <img src={club.coverImage} alt={club.name} style={styles.clubCover} />
+                      )}
+                      <div style={styles.clubLogoContainer}>
+                        <img 
+                          src={club.logo || 'https://via.placeholder.com/80'} 
+                          alt={club.name}
+                          style={styles.clubLogo}
+                        />
+                      </div>
+                      <div style={styles.clubActions}>
+                        <button onClick={() => openEditClub(club)} style={styles.editClubBtn}>
+                          ✏️
+                        </button>
+                        <button onClick={() => handleDeleteClub(club._id)} style={styles.deleteClubBtn}>
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div style={styles.clubCardBody}>
+                      <h3 style={styles.clubName}>{club.name}</h3>
+                      {club.shortName && (
+                        <p style={styles.clubShortName}>{club.shortName}</p>
+                      )}
+                      <p style={styles.clubDescription}>{club.description}</p>
+                      <div style={styles.clubMeta}>
+                        <span style={styles.clubCategory}>{club.category}</span>
+                        <span style={styles.clubMembers}>👥 {club.members?.length || 0} members</span>
+                      </div>
+                    </div>
+                    
+                    <div style={styles.clubCardFooter}>
+                      <button 
+                        onClick={() => {
+                          setSelectedClub(club);
+                          resetEventForm();
+                          setShowEventModal(true);
+                        }}
+                        style={styles.clubEventBtn}
+                      >
+                        📅 Add Event
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setSelectedClub(club);
+                          resetNewsForm();
+                          setShowNewsModal(true);
+                        }}
+                        style={styles.clubNewsBtn}
+                      >
+                        📢 Add News
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {clubs.length === 0 && (
+                <div style={styles.noDataContainer}>
+                  <div style={styles.noDataIcon}>🎯</div>
+                  <h3 style={styles.noDataTitle}>No Clubs Yet</h3>
+                  <p style={styles.noDataText}>Create your first campus club to get started</p>
+                </div>
+              )}
+            </div>
+          )}
         </main>
       </div>
+
+      {/* Create/Edit Club Modal */}
+      {showClubModal && (
+        <div style={styles.modal}>
+          <div style={styles.modalContentLarge}>
+            <h3 style={styles.modalTitle}>
+              {editingClub ? 'Edit Club' : 'Create New Club'}
+            </h3>
+            
+            <div style={styles.modalForm}>
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>Club Name *</label>
+                  <input
+                    type="text"
+                    value={clubForm.name}
+                    onChange={(e) => setClubForm({...clubForm, name: e.target.value})}
+                    style={styles.formInput}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>Short Name</label>
+                  <input
+                    type="text"
+                    value={clubForm.shortName}
+                    onChange={(e) => setClubForm({...clubForm, shortName: e.target.value})}
+                    style={styles.formInput}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Description *</label>
+                <textarea
+                  value={clubForm.description}
+                  onChange={(e) => setClubForm({...clubForm, description: e.target.value})}
+                  rows={3}
+                  style={styles.formTextarea}
+                />
+              </div>
+
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>Category</label>
+                  <select
+                    value={clubForm.category}
+                    onChange={(e) => setClubForm({...clubForm, category: e.target.value})}
+                    style={styles.formSelect}
+                  >
+                    <option value="technical">Technical</option>
+                    <option value="cultural">Cultural</option>
+                    <option value="sports">Sports</option>
+                    <option value="academic">Academic</option>
+                    <option value="social">Social</option>
+                    <option value="entrepreneurship">Entrepreneurship</option>
+                    <option value="art">Art</option>
+                    <option value="music">Music</option>
+                  </select>
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>Founded Date</label>
+                  <input
+                    type="date"
+                    value={clubForm.foundedDate}
+                    onChange={(e) => setClubForm({...clubForm, foundedDate: e.target.value})}
+                    style={styles.formInput}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Motto</label>
+                <input
+                  type="text"
+                  value={clubForm.motto}
+                  onChange={(e) => setClubForm({...clubForm, motto: e.target.value})}
+                  style={styles.formInput}
+                  placeholder="Enter club motto..."
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Logo URL</label>
+                <input
+                  type="url"
+                  value={clubForm.logo}
+                  onChange={(e) => setClubForm({...clubForm, logo: e.target.value})}
+                  style={styles.formInput}
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Cover Image URL</label>
+                <input
+                  type="url"
+                  value={clubForm.coverImage}
+                  onChange={(e) => setClubForm({...clubForm, coverImage: e.target.value})}
+                  style={styles.formInput}
+                  placeholder="https://..."
+                />
+              </div>
+
+              <h4 style={styles.formSubtitle}>Faculty Advisor</h4>
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <input
+                    type="text"
+                    placeholder="Name"
+                    value={clubForm.facultyAdvisor.name}
+                    onChange={(e) => setClubForm({
+                      ...clubForm,
+                      facultyAdvisor: {...clubForm.facultyAdvisor, name: e.target.value}
+                    })}
+                    style={styles.formInput}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={clubForm.facultyAdvisor.email}
+                    onChange={(e) => setClubForm({
+                      ...clubForm,
+                      facultyAdvisor: {...clubForm.facultyAdvisor, email: e.target.value}
+                    })}
+                    style={styles.formInput}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <input
+                    type="text"
+                    placeholder="Department"
+                    value={clubForm.facultyAdvisor.department}
+                    onChange={(e) => setClubForm({
+                      ...clubForm,
+                      facultyAdvisor: {...clubForm.facultyAdvisor, department: e.target.value}
+                    })}
+                    style={styles.formInput}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <input
+                    type="tel"
+                    placeholder="Phone"
+                    value={clubForm.facultyAdvisor.phone}
+                    onChange={(e) => setClubForm({
+                      ...clubForm,
+                      facultyAdvisor: {...clubForm.facultyAdvisor, phone: e.target.value}
+                    })}
+                    style={styles.formInput}
+                  />
+                </div>
+              </div>
+
+              <h4 style={styles.formSubtitle}>Social Links</h4>
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <input
+                    type="url"
+                    placeholder="Instagram URL"
+                    value={clubForm.socialLinks.instagram}
+                    onChange={(e) => setClubForm({
+                      ...clubForm,
+                      socialLinks: {...clubForm.socialLinks, instagram: e.target.value}
+                    })}
+                    style={styles.formInput}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <input
+                    type="url"
+                    placeholder="LinkedIn URL"
+                    value={clubForm.socialLinks.linkedin}
+                    onChange={(e) => setClubForm({
+                      ...clubForm,
+                      socialLinks: {...clubForm.socialLinks, linkedin: e.target.value}
+                    })}
+                    style={styles.formInput}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <input
+                    type="url"
+                    placeholder="GitHub URL"
+                    value={clubForm.socialLinks.github}
+                    onChange={(e) => setClubForm({
+                      ...clubForm,
+                      socialLinks: {...clubForm.socialLinks, github: e.target.value}
+                    })}
+                    style={styles.formInput}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <input
+                    type="url"
+                    placeholder="Website URL"
+                    value={clubForm.socialLinks.website}
+                    onChange={(e) => setClubForm({
+                      ...clubForm,
+                      socialLinks: {...clubForm.socialLinks, website: e.target.value}
+                    })}
+                    style={styles.formInput}
+                  />
+                </div>
+              </div>
+
+              <h4 style={styles.formSubtitle}>Meeting Schedule</h4>
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <select
+                    value={clubForm.meetingSchedule.day}
+                    onChange={(e) => setClubForm({
+                      ...clubForm,
+                      meetingSchedule: {...clubForm.meetingSchedule, day: e.target.value}
+                    })}
+                    style={styles.formSelect}
+                  >
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                    <option value="Sunday">Sunday</option>
+                  </select>
+                </div>
+                <div style={styles.formGroup}>
+                  <input
+                    type="text"
+                    placeholder="Time (e.g., 4:00 PM)"
+                    value={clubForm.meetingSchedule.time}
+                    onChange={(e) => setClubForm({
+                      ...clubForm,
+                      meetingSchedule: {...clubForm.meetingSchedule, time: e.target.value}
+                    })}
+                    style={styles.formInput}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <input
+                    type="text"
+                    placeholder="Venue"
+                    value={clubForm.meetingSchedule.venue}
+                    onChange={(e) => setClubForm({
+                      ...clubForm,
+                      meetingSchedule: {...clubForm.meetingSchedule, venue: e.target.value}
+                    })}
+                    style={styles.formInput}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <select
+                    value={clubForm.meetingSchedule.frequency}
+                    onChange={(e) => setClubForm({
+                      ...clubForm,
+                      meetingSchedule: {...clubForm.meetingSchedule, frequency: e.target.value}
+                    })}
+                    style={styles.formSelect}
+                  >
+                    <option value="weekly">Weekly</option>
+                    <option value="bi-weekly">Bi-Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.modalActions}>
+              <button onClick={editingClub ? handleUpdateClub : handleCreateClub} style={styles.modalSaveBtn}>
+                {editingClub ? 'Update Club' : 'Create Club'}
+              </button>
+              <button onClick={() => {
+                setShowClubModal(false);
+                setEditingClub(null);
+                resetClubForm();
+              }} style={styles.modalCancelBtn}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Event Modal */}
+      {showEventModal && selectedClub && (
+        <div style={styles.modal}>
+          <div style={styles.modalContent}>
+            <h3 style={styles.modalTitle}>Add Event to {selectedClub.name}</h3>
+            
+            <div style={styles.modalForm}>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Event Title *</label>
+                <input
+                  type="text"
+                  value={eventForm.title}
+                  onChange={(e) => setEventForm({...eventForm, title: e.target.value})}
+                  style={styles.formInput}
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Description</label>
+                <textarea
+                  value={eventForm.description}
+                  onChange={(e) => setEventForm({...eventForm, description: e.target.value})}
+                  rows={3}
+                  style={styles.formTextarea}
+                />
+              </div>
+
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>Date *</label>
+                  <input
+                    type="date"
+                    value={eventForm.date}
+                    onChange={(e) => setEventForm({...eventForm, date: e.target.value})}
+                    style={styles.formInput}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>Event Type</label>
+                  <select
+                    value={eventForm.type}
+                    onChange={(e) => setEventForm({...eventForm, type: e.target.value})}
+                    style={styles.formSelect}
+                  >
+                    <option value="workshop">Workshop</option>
+                    <option value="seminar">Seminar</option>
+                    <option value="hackathon">Hackathon</option>
+                    <option value="meetup">Meetup</option>
+                    <option value="social">Social</option>
+                    <option value="competition">Competition</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>Start Time</label>
+                  <input
+                    type="time"
+                    value={eventForm.startTime}
+                    onChange={(e) => setEventForm({...eventForm, startTime: e.target.value})}
+                    style={styles.formInput}
+                  />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>End Time</label>
+                  <input
+                    type="time"
+                    value={eventForm.endTime}
+                    onChange={(e) => setEventForm({...eventForm, endTime: e.target.value})}
+                    style={styles.formInput}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Location/Venue</label>
+                <input
+                  type="text"
+                  value={eventForm.location}
+                  onChange={(e) => setEventForm({...eventForm, location: e.target.value})}
+                  style={styles.formInput}
+                  placeholder="Building, Room, Online Link"
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Max Participants</label>
+                <input
+                  type="number"
+                  value={eventForm.maxParticipants}
+                  onChange={(e) => setEventForm({...eventForm, maxParticipants: e.target.value})}
+                  style={styles.formInput}
+                  placeholder="Leave empty for unlimited"
+                />
+              </div>
+            </div>
+
+            <div style={styles.modalActions}>
+              <button onClick={handleAddEvent} style={styles.modalSaveBtn}>
+                Add Event
+              </button>
+              <button onClick={() => setShowEventModal(false)} style={styles.modalCancelBtn}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add News Modal */}
+      {showNewsModal && selectedClub && (
+        <div style={styles.modal}>
+          <div style={styles.modalContent}>
+            <h3 style={styles.modalTitle}>Add News to {selectedClub.name}</h3>
+            
+            <div style={styles.modalForm}>
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>News Title *</label>
+                <input
+                  type="text"
+                  value={newsForm.title}
+                  onChange={(e) => setNewsForm({...newsForm, title: e.target.value})}
+                  style={styles.formInput}
+                />
+              </div>
+
+              <div style={styles.formGroup}>
+                <label style={styles.formLabel}>Content *</label>
+                <textarea
+                  value={newsForm.content}
+                  onChange={(e) => setNewsForm({...newsForm, content: e.target.value})}
+                  rows={4}
+                  style={styles.formTextarea}
+                />
+              </div>
+
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>News Type</label>
+                  <select
+                    value={newsForm.type}
+                    onChange={(e) => setNewsForm({...newsForm, type: e.target.value})}
+                    style={styles.formSelect}
+                  >
+                    <option value="announcement">Announcement</option>
+                    <option value="event">Event</option>
+                    <option value="achievement">Achievement</option>
+                    <option value="update">Update</option>
+                    <option value="meeting">Meeting</option>
+                  </select>
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.formLabel}>Importance</label>
+                  <select
+                    value={newsForm.importance}
+                    onChange={(e) => setNewsForm({...newsForm, importance: e.target.value})}
+                    style={styles.formSelect}
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="important">Important</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.modalActions}>
+              <button onClick={handleAddNews} style={styles.modalSaveBtn}>
+                Add News
+              </button>
+              <button onClick={() => setShowNewsModal(false)} style={styles.modalCancelBtn}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {selected && (
@@ -972,6 +1823,9 @@ const styles = {
   studentsSection: {
     width: "100%",
   },
+  clubsSection: {
+    width: "100%",
+  },
   sectionHeader: {
     display: "flex",
     justifyContent: "space-between",
@@ -1127,6 +1981,154 @@ const styles = {
   deleteBtn: {
     color: "#e74c3c",
   },
+  // Clubs Grid Styles
+  clubsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
+    gap: "1.5rem",
+    marginTop: "1rem",
+  },
+  clubCard: {
+    background: "white",
+    borderRadius: "12px",
+    overflow: "hidden",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+    transition: "transform 0.3s ease, boxShadow 0.3s ease",
+  },
+  clubCardHeader: {
+    position: "relative",
+    height: "120px",
+    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+  },
+  clubCover: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+  clubLogoContainer: {
+    position: "absolute",
+    bottom: "-30px",
+    left: "20px",
+  },
+  clubLogo: {
+    width: "60px",
+    height: "60px",
+    borderRadius: "50%",
+    border: "4px solid white",
+    background: "white",
+    objectFit: "cover",
+  },
+  clubActions: {
+    position: "absolute",
+    top: "10px",
+    right: "10px",
+    display: "flex",
+    gap: "0.5rem",
+  },
+  editClubBtn: {
+    background: "white",
+    border: "none",
+    padding: "0.5rem",
+    borderRadius: "50%",
+    cursor: "pointer",
+    fontSize: "1rem",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+  },
+  deleteClubBtn: {
+    background: "white",
+    border: "none",
+    padding: "0.5rem",
+    borderRadius: "50%",
+    cursor: "pointer",
+    fontSize: "1rem",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+    color: "#e74c3c",
+  },
+  clubCardBody: {
+    padding: "1rem 1rem 1rem 1rem",
+    marginTop: "30px",
+  },
+  clubName: {
+    fontSize: "1.1rem",
+    fontWeight: "bold",
+    margin: "0 0 0.25rem 0",
+    color: "#2c3e50",
+  },
+  clubShortName: {
+    fontSize: "0.8rem",
+    color: "#7f8c8d",
+    marginBottom: "0.5rem",
+  },
+  clubDescription: {
+    fontSize: "0.85rem",
+    color: "#555",
+    marginBottom: "0.75rem",
+    lineHeight: "1.4",
+  },
+  clubMeta: {
+    display: "flex",
+    gap: "1rem",
+    alignItems: "center",
+  },
+  clubCategory: {
+    background: "#e3f2fd",
+    color: "#1976d2",
+    padding: "0.25rem 0.5rem",
+    borderRadius: "12px",
+    fontSize: "0.7rem",
+    fontWeight: "600",
+    textTransform: "capitalize",
+  },
+  clubMembers: {
+    fontSize: "0.75rem",
+    color: "#7f8c8d",
+  },
+  clubCardFooter: {
+    padding: "1rem",
+    borderTop: "1px solid #e1e8ed",
+    display: "flex",
+    gap: "0.5rem",
+  },
+  clubEventBtn: {
+    flex: 1,
+    background: "#3498db",
+    color: "white",
+    border: "none",
+    padding: "0.5rem",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontSize: "0.8rem",
+    fontWeight: "500",
+  },
+  clubNewsBtn: {
+    flex: 1,
+    background: "#27ae60",
+    color: "white",
+    border: "none",
+    padding: "0.5rem",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontSize: "0.8rem",
+    fontWeight: "500",
+  },
+  noDataContainer: {
+    textAlign: "center",
+    padding: "3rem",
+  },
+  noDataIcon: {
+    fontSize: "4rem",
+    marginBottom: "1rem",
+  },
+  noDataTitle: {
+    fontSize: "1.2rem",
+    fontWeight: "bold",
+    color: "#2c3e50",
+    marginBottom: "0.5rem",
+  },
+  noDataText: {
+    color: "#7f8c8d",
+  },
+  // Modal Styles
   modal: {
     position: "fixed",
     top: 0,
@@ -1148,10 +2150,72 @@ const styles = {
     maxWidth: "500px",
     boxShadow: "0 10px 25px rgba(0, 0, 0, 0.2)",
   },
+  modalContentLarge: {
+    background: "white",
+    padding: "2rem",
+    borderRadius: "12px",
+    width: "90%",
+    maxWidth: "800px",
+    maxHeight: "90vh",
+    overflowY: "auto",
+    boxShadow: "0 10px 25px rgba(0, 0, 0, 0.2)",
+  },
   modalTitle: {
     fontSize: "1.3rem",
     fontWeight: "bold",
     marginBottom: "1.5rem",
+    color: "#2c3e50",
+  },
+  modalForm: {
+    marginBottom: "1.5rem",
+  },
+  formRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "1rem",
+    marginBottom: "1rem",
+  },
+  formGroup: {
+    marginBottom: "1rem",
+  },
+  formLabel: {
+    display: "block",
+    fontSize: "0.85rem",
+    fontWeight: "600",
+    marginBottom: "0.5rem",
+    color: "#2c3e50",
+  },
+  formInput: {
+    width: "100%",
+    padding: "0.7rem",
+    border: "1px solid #e1e8ed",
+    borderRadius: "6px",
+    fontSize: "0.9rem",
+    outline: "none",
+    transition: "all 0.3s ease",
+  },
+  formTextarea: {
+    width: "100%",
+    padding: "0.7rem",
+    border: "1px solid #e1e8ed",
+    borderRadius: "6px",
+    fontSize: "0.9rem",
+    outline: "none",
+    resize: "vertical",
+  },
+  formSelect: {
+    width: "100%",
+    padding: "0.7rem",
+    border: "1px solid #e1e8ed",
+    borderRadius: "6px",
+    fontSize: "0.9rem",
+    outline: "none",
+    background: "white",
+  },
+  formSubtitle: {
+    fontSize: "1rem",
+    fontWeight: "600",
+    margin: "1rem 0 0.5rem 0",
     color: "#2c3e50",
   },
   modalInput: {

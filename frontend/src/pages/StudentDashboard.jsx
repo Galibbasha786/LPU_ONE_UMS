@@ -319,7 +319,13 @@ function StudentDashboard() {
               <span className="btn-text">Internships</span>
             </button>
           </div>
-
+           <div className="sidebar-section">
+  <h3 className="sidebar-title">🏫 Campus Life</h3>
+  <button onClick={() => navigate("/campus-clubs")} className="sidebar-btn">
+    <span className="btn-icon">🏫</span>
+    <span className="btn-text">Campus Clubs</span>
+  </button>
+</div>
           <div className="sidebar-section">
             <h3 className="sidebar-title">🔔 Communication</h3>
             <button onClick={() => navigate("/student-notifications")} className="sidebar-btn">

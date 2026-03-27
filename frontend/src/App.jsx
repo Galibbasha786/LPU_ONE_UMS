@@ -23,10 +23,6 @@ import AdminCreateTeacher from './pages/AdminCreateTeacher';
 import StaffManagement from './pages/StaffManagement';
 import AIChatbot from './pages/LPUChatbot';
 import HomePage from './pages/HomePage';
-
-// ========================
-// 🔹 ADD THESE MISSING IMPORTS
-// ========================
 import StudentBulkUpload from './pages/StudentBulkUpload';
 import Scholarships from './pages/Scholarships';
 import FinancialReports from './pages/FinancialReports';
@@ -40,6 +36,7 @@ import MySubjects from './pages/MySubjects';
 import PaymentHistory from './pages/PaymentHistory';
 import ChangePassword from './pages/ChangePassword';
 import Schedule from './pages/Schedule';
+import CampusClubs from './pages/CampusClubs';
 
 function App() {
   return (
@@ -49,6 +46,7 @@ function App() {
           {/* Authentication */}
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<HomePage />} /> 
+          
           {/* Dashboards */}
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
@@ -91,6 +89,9 @@ function App() {
           <Route path="/class-timetable" element={<ClassTimetable />} />
           <Route path="/exam-timetable" element={<ExamTimetable />} />
           <Route path="/schedule" element={<Schedule />} />
+          
+          {/* Campus Life Routes */}
+          <Route path="/campus-clubs" element={<CampusClubs />} />
           
           {/* Profile & Settings */}
           <Route path="/profile" element={<Profile />} />

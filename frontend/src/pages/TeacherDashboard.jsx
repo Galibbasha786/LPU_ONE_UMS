@@ -209,7 +209,15 @@ function TeacherDashboard() {
               📅 Exam Schedule
             </button>
           </div>
-
+          <div className="sidebar-section">
+  <h3 style={styles.sidebarTitle}>🏫 Campus Life</h3>
+  <button 
+    onClick={() => navigate("/campus-clubs")} 
+    style={styles.sidebarBtn}
+  >
+    🏫 Campus Clubs
+  </button>
+</div>
           <div style={styles.sidebarSection}>
             <h3 style={styles.sidebarTitle}>🔔 Communication</h3>
             <button onClick={() => navigate("/notifications")} style={styles.sidebarBtn}>
